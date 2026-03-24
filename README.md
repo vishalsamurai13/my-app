@@ -1,50 +1,51 @@
-# Welcome to your Expo app 👋
+# AI Clipart Generator
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Workspace monorepo for the Android assignment deliverable:
 
-## Get started
+- `apps/mobile`: Expo Router app for image upload, generation, results, history, download, and share.
+- `apps/api`: Fastify API for uploads, async generation jobs, history, and local asset serving.
+- `packages/shared`: shared contracts, enums, and validators used by both app and API.
 
-1. Install dependencies
+## Run
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+1. Install dependencies:
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Start the API:
 
-## Learn more
+```bash
+npm run dev:api
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+3. Start the mobile app:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm run dev:mobile
+```
 
-## Join the community
+4. Launch Android:
 
-Join our community of developers creating universal apps.
+```bash
+npm run android
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Environment
+
+Create `.env` in the repo root or under `apps/api/` with:
+
+```bash
+PORT=4000
+API_BASE_URL=http://10.0.2.2:4000
+STORAGE_MODE=local
+```
+
+For Android emulator access, keep both the mobile app API URL and the backend `API_BASE_URL` on `http://10.0.2.2:4000`. If you later test on a physical device, switch both to your machine's LAN IP.
+
+## Notes
+
+- The API currently uses a local file storage + mock AI provider fallback so the assignment can run end-to-end without external services.
+- Prisma schema and client generation are included for the production Postgres path.
+- Verified locally with `npm run typecheck`, `npm run lint`, `npm test`, and `npm run prisma:generate`.

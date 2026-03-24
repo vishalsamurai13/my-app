@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "AI Clipart Generator",
+    "slug": "ai-clipart-generator",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "aiclipart",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "android": {
+      "package": "com.vishal.ai_clipart_generator",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

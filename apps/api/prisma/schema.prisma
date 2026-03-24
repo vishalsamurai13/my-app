@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StyleType {
+  cartoon
+  anime
+  pixel
+  flat
+  sketch
+}
+
+enum StyleTaskStatus {
+  queued
+  processing
+  success
+  error
+}
+
+model Device {
+  id        String          @id
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  uploads   Upload[]
+  jobs      GenerationJob[]
+}
+
+model Upload {
+  id         String          @id
+  deviceId   String
+  storageKey String
+  url        String
+  mimeType   String
+  fileName   String
+  createdAt  DateTime        @default(now())
+  device     Device          @relation(fields: [deviceId], references: [id])
+  jobs       GenerationJob[]
+}
+
+model GenerationJob {
+  id            String        @id
+  deviceId      String
+  uploadId      String
+  promptVersion String
+  status        StyleTaskStatus
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  device        Device        @relation(fields: [deviceId], references: [id])
+  upload        Upload        @relation(fields: [uploadId], references: [id])
+  styleTasks    StyleTask[]
+}
+
+model StyleTask {
+  id         String          @id
+  jobId      String
+  style      StyleType
+  status     StyleTaskStatus
+  error      String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  job        GenerationJob   @relation(fields: [jobId], references: [id])
+  asset      Asset?
+
+  @@unique([jobId, style])
+}
+
+model Asset {
+  id          String      @id
+  styleTaskId String      @unique
+  url         String
+  storageKey  String
+  mimeType    String
+  width       Int?
+  height      Int?
+  createdAt   DateTime    @default(now())
+  styleTask   StyleTask   @relation(fields: [styleTaskId], references: [id])
+}

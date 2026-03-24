@@ -10,6 +10,9 @@ const STYLE_COLORS: Record<StyleType, string> = {
 };
 
 export class MockAiProvider implements AiProvider {
+  readonly name = 'mock' as const;
+  readonly model = 'local-svg-mock';
+
   async generateStyleVariant(input: {
     style: StyleType;
     promptVersion: string;

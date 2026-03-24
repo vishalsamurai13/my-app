@@ -24,6 +24,8 @@ export type GenerationJob = {
   createdAt: string;
   updatedAt: string;
   promptVersion: string;
+  provider?: string;
+  model?: string;
   status: StyleTaskStatus;
   styles: GeneratedAsset[];
 };

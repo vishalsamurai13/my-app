@@ -24,6 +24,8 @@ describe('JobOrchestrator', () => {
       deviceId: 'device-1',
       uploadId: 'upload-1',
       promptVersion: 'v1',
+      provider: 'mock',
+      model: 'local-svg-mock',
       styles: ['anime', 'cartoon'],
     });
 

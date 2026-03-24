@@ -1,5 +1,7 @@
 import type { GenerationJob, StyleType, StyleTaskStatus } from '@ai-clipart/shared';
 
+export type AiProviderName = 'mock' | 'replicate';
+
 export type UploadRecord = {
   id: string;
   deviceId: string;
@@ -15,8 +17,11 @@ export type StyleTaskRecord = {
   jobId: string;
   style: StyleType;
   status: StyleTaskStatus;
+  providerJobId?: string | null;
   error?: string | null;
   assetId?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -38,4 +43,14 @@ export type RepositoryState = {
   jobs: GenerationJob[];
   styleTasks: StyleTaskRecord[];
   assets: AssetRecord[];
+};
+
+export type AppHealth = {
+  ok: true;
+  service: 'ai-clipart-api';
+  provider: AiProviderName;
+  storage: 'local' | 'cloudinary';
+  repository: 'file' | 'prisma';
+  databaseConfigured: boolean;
+  storageConfigured: boolean;
 };

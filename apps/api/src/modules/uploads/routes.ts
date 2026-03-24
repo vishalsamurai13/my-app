@@ -2,18 +2,15 @@ import { extension as mimeExtension } from 'mime-types';
 import { v4 as uuid } from 'uuid';
 import type { FastifyInstance } from 'fastify';
 import type { AppRepository } from '@/lib/prisma/repository.js';
-import { LocalStorageService } from '@/lib/storage/local-storage.js';
+import type { StorageProvider } from '@/lib/storage/provider.js';
+import { deviceHeaderSchema } from '@/schemas/http.js';
 
 export async function uploadRoutes(
   app: FastifyInstance,
-  options: { repository: AppRepository; storage: LocalStorageService },
+  options: { repository: AppRepository; storage: StorageProvider },
 ) {
   app.post('/uploads', async (request, reply) => {
-    const deviceId = request.headers['x-device-id'];
-
-    if (!deviceId || typeof deviceId !== 'string') {
-      return reply.code(400).send('Missing x-device-id header.');
-    }
+    const { 'x-device-id': deviceId } = deviceHeaderSchema.parse(request.headers);
 
     const file = await request.file();
 
@@ -27,11 +24,16 @@ export async function uploadRoutes(
     }
 
     const buffer = await file.toBuffer();
+    if (buffer.byteLength > 8 * 1024 * 1024) {
+      return reply.code(400).send('Image exceeds the maximum size limit.');
+    }
+
     const extension = mimeExtension(mimeType) || 'jpg';
-    const stored = await options.storage.saveUpload({
+    const stored = await options.storage.saveAsset({
       buffer,
       extension: extension.toString(),
       folder: 'uploads',
+      mimeType,
     });
 
     const upload = await options.repository.saveUpload({
@@ -42,6 +44,8 @@ export async function uploadRoutes(
       mimeType,
       fileName: file.filename || `upload-${Date.now()}.${extension}`,
     });
+
+    request.log.info({ uploadId: upload.id, deviceId }, 'upload created');
 
     return {
       uploadId: upload.id,

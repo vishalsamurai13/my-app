@@ -34,6 +34,8 @@ export const generationJobSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   promptVersion: z.string(),
+  provider: z.string().optional(),
+  model: z.string().optional(),
   status: styleTaskStatusSchema,
   styles: z.array(assetSchema),
 });

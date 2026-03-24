@@ -22,6 +22,11 @@ enum StyleTaskStatus {
   error
 }
 
+enum AiProvider {
+  mock
+  replicate
+}
+
 model Device {
   id        String          @id
   createdAt DateTime        @default(now())
@@ -47,6 +52,8 @@ model GenerationJob {
   deviceId      String
   uploadId      String
   promptVersion String
+  provider      AiProvider
+  model         String
   status        StyleTaskStatus
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -60,7 +67,10 @@ model StyleTask {
   jobId      String
   style      StyleType
   status     StyleTaskStatus
+  providerJobId String?
   error      String?
+  startedAt  DateTime?
+  completedAt DateTime?
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
   job        GenerationJob   @relation(fields: [jobId], references: [id])

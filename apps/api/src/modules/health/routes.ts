@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
+import type { AppHealth } from '@/types/app.js';
 
-export async function healthRoutes(app: FastifyInstance) {
-  app.get('/health', async () => ({
-    ok: true,
-    service: 'ai-clipart-api',
-  }));
+export async function healthRoutes(
+  app: FastifyInstance,
+  statusProvider: () => Promise<AppHealth>,
+) {
+  app.get('/health', async () => statusProvider());
 }

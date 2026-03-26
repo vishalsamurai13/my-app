@@ -3,6 +3,8 @@ import {
   generationJobSchema,
   historyResponseSchema,
   meResponseSchema,
+  shareAssetResponseSchema,
+  updateMeBodySchema,
   uploadResponseSchema,
   type ShapeType,
   type StyleType,
@@ -162,4 +164,30 @@ export async function getMe(token: string) {
     headers: withAuthHeaders(token),
   });
   return meResponseSchema.parse(data);
+}
+
+export async function updateMe(input: {
+  token: string;
+  displayName?: string | null;
+  dateOfBirth?: string | null;
+}) {
+  const body = updateMeBodySchema.parse({
+    displayName: input.displayName ?? null,
+    dateOfBirth: input.dateOfBirth ?? null,
+  });
+
+  const data = await request('/me', {
+    method: 'PATCH',
+    headers: withAuthHeaders(input.token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  return meResponseSchema.parse(data);
+}
+
+export async function createShareLink(assetId: string, token: string) {
+  const data = await request(`/share/${assetId}`, {
+    method: 'POST',
+    headers: withAuthHeaders(token),
+  });
+  return shareAssetResponseSchema.parse(data);
 }

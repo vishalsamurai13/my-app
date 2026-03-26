@@ -20,6 +20,7 @@ export const createJobBodySchema = z.object({
 
 export const assetSchema = z.object({
   id: z.string(),
+  assetId: z.string().optional(),
   style: styleTypeSchema,
   status: styleTaskStatusSchema,
   mimeType: z.string().optional(),
@@ -56,8 +57,24 @@ export const meResponseSchema = z.object({
   firstName: z.string().nullable(),
   lastName: z.string().nullable(),
   imageUrl: z.string().url().nullable(),
+  displayName: z.string().nullable(),
+  dateOfBirth: z.string().nullable(),
+});
+
+export const updateMeBodySchema = z.object({
+  displayName: z.string().trim().max(80).nullable().optional(),
+  dateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be in YYYY-MM-DD format.')
+    .nullable()
+    .optional(),
 });
 
 export const historyResponseSchema = z.object({
   jobs: z.array(generationJobSchema),
+});
+
+export const shareAssetResponseSchema = z.object({
+  assetId: z.string(),
+  shareUrl: z.string().url(),
 });

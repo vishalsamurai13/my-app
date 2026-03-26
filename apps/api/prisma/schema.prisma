@@ -37,6 +37,8 @@ model User {
   firstName   String?
   lastName    String?
   imageUrl    String?
+  displayName String?
+  dateOfBirth String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   uploads     Upload[]

@@ -9,6 +9,7 @@ export type StyleTaskStatus = (typeof STYLE_TASK_STATUSES)[number];
 
 export type GeneratedAsset = {
   id: string;
+  assetId?: string;
   style: StyleType;
   status: StyleTaskStatus;
   mimeType?: string;

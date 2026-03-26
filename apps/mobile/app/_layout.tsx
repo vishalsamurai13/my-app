@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { ToastProvider } from '@/components/feedback/toast-provider';
 import { queryClient } from '@/lib/query/client';
 import { CLERK_PUBLISHABLE_KEY } from '@/constants/config';
 
@@ -18,24 +19,26 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
         <QueryClientProvider client={queryClient}>
-          <BottomSheetModalProvider>
-            <StatusBar style="light" />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: 'fade',
-                contentStyle: {
-                  backgroundColor: '#121212',
-                },
-              }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="welcome" />
-              <Stack.Screen name="sign-in" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="create" />
-              <Stack.Screen name="results/[jobId]" />
-            </Stack>
-          </BottomSheetModalProvider>
+          <ToastProvider>
+            <BottomSheetModalProvider>
+              <StatusBar style="light" />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: 'fade',
+                  contentStyle: {
+                    backgroundColor: '#121212',
+                  },
+                }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="welcome" />
+                <Stack.Screen name="sign-in" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="create" />
+                <Stack.Screen name="results/[jobId]" />
+              </Stack>
+            </BottomSheetModalProvider>
+          </ToastProvider>
         </QueryClientProvider>
       </ClerkProvider>
     </GestureHandlerRootView>

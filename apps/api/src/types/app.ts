@@ -10,6 +10,12 @@ export type AuthUser = {
   imageUrl: string | null;
 };
 
+export type StoredUserRecord = AuthUser & {
+  id: string;
+  displayName: string | null;
+  dateOfBirth: string | null;
+};
+
 export type UploadRecord = {
   id: string;
   userId: string;
@@ -46,7 +52,7 @@ export type AssetRecord = {
 };
 
 export type RepositoryState = {
-  users: AuthUser[];
+  users: StoredUserRecord[];
   uploads: UploadRecord[];
   jobs: GenerationJob[];
   styleTasks: StyleTaskRecord[];

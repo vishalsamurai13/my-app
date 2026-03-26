@@ -4,12 +4,15 @@ import { STYLE_LABELS } from '@ai-clipart/shared';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
+import { useToast } from '@/components/feedback/toast-provider';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { useJob } from '@/features/generation/use-job';
 import { saveRemoteFileToGallery, shareRemoteFile } from '@/features/share-download/file-actions';
+import { createShareLink } from '@/lib/api/client';
+import { useClerkAuthState } from '@/lib/auth/clerk';
 import { useAppStore } from '@/lib/store/app-store';
 import { resolveAssetUrl } from '@/utils/asset-url';
 
@@ -17,6 +20,8 @@ export default function ResultScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isSignedIn } = useAuth();
+  const { getRequiredToken } = useClerkAuthState();
+  const { showToast } = useToast();
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
   const { data, error, isLoading, retryStyle } = useJob(jobId);
   const activeResultStyle = useAppStore((state) => state.activeResultStyle);
@@ -50,10 +55,14 @@ export default function ResultScreen() {
 
     if (freshErrors.length > 0) {
       shownErrorIdsRef.current = [...shownErrorIdsRef.current, ...freshErrors.map((style) => style.id)];
-      const summary = freshErrors.map((style) => `${STYLE_LABELS[style.style]} failed.`).join('\n');
-      Alert.alert('Generation issue', summary);
+      const summary = freshErrors.map((style) => `${STYLE_LABELS[style.style]} failed.`).join(' ');
+      showToast({
+        title: 'Generation issue',
+        message: summary,
+        variant: 'error',
+      });
     }
-  }, [data?.styles]);
+  }, [data?.styles, showToast]);
 
   const successfulStyles = data?.styles.filter((style) => style.url) ?? [];
   const previewCount = successfulStyles.length || (data?.styles.length ?? 0);
@@ -63,18 +72,37 @@ export default function ResultScreen() {
     if (!selectedUrl || !selected) return;
     try {
       await saveRemoteFileToGallery(selectedUrl, `${selected.style}-${jobId}.png`);
-      Alert.alert('Saved', 'The generated image was saved to your gallery.');
+      showToast({
+        title: 'Saved to gallery',
+        message: 'The generated image is now available in your photos.',
+        variant: 'success',
+      });
     } catch (saveError) {
-      Alert.alert('Download failed', saveError instanceof Error ? saveError.message : 'Unable to save file.');
+      showToast({
+        title: 'Download failed',
+        message: saveError instanceof Error ? saveError.message : 'Unable to save file.',
+        variant: 'error',
+      });
     }
   }
 
   async function handleShare() {
-    if (!selectedUrl || !selected) return;
+    if (!selectedUrl || !selected?.assetId) return;
     try {
-      await shareRemoteFile(selectedUrl, `${selected.style}-${jobId}.png`);
+      const token = await getRequiredToken();
+      const shareLink = await createShareLink(selected.assetId, token);
+      await shareRemoteFile(shareLink.shareUrl, `${selected.style}-${jobId}.png`);
+      showToast({
+        title: 'Ready to share',
+        message: 'A public share link was prepared for this image.',
+        variant: 'success',
+      });
     } catch (shareError) {
-      Alert.alert('Share failed', shareError instanceof Error ? shareError.message : 'Unable to share file.');
+      showToast({
+        title: 'Share failed',
+        message: shareError instanceof Error ? shareError.message : 'Unable to share file.',
+        variant: 'error',
+      });
     }
   }
 
@@ -135,7 +163,16 @@ export default function ResultScreen() {
               <Text className="text-center text-lg font-bold text-primary">{STYLE_LABELS[style.style]}</Text>
               <Text className="mt-1 text-center text-xs text-muted">{style.status === 'success' ? 'Ready' : style.status}</Text>
               {style.status === 'error' ? (
-                <Pressable onPress={() => retryStyle(style.style)} className="self-center">
+                <Pressable
+                  onPress={() => {
+                    retryStyle(style.style);
+                    showToast({
+                      title: 'Retry started',
+                      message: `${STYLE_LABELS[style.style]} is being generated again.`,
+                      variant: 'info',
+                    });
+                  }}
+                  className="self-center">
                   <Text className="mt-1.5 text-center font-bold text-[#c9b0ff]">Retry</Text>
                 </Pressable>
               ) : null}
@@ -145,7 +182,7 @@ export default function ResultScreen() {
       </View>
 
       <View className="flex-row gap-3">
-        <Button variant="secondary" onPress={handleShare} disabled={!selectedUrl}>
+        <Button variant="secondary" onPress={handleShare} disabled={!selectedUrl || !selected?.assetId}>
           Share
         </Button>
         <Button onPress={handleDownload} disabled={!selectedUrl}>

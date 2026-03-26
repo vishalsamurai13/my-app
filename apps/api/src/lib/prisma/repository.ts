@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { AiProvider as PrismaAiProvider, PrismaClient } from '@prisma/client';
 import type { GenerationJob, ShapeType, StyleType, StyleTaskStatus } from '@ai-clipart/shared';
 import { v4 as uuid } from 'uuid';
-import type { AiProviderName, AssetRecord, AuthUser, RepositoryState, StyleTaskRecord, UploadRecord } from '@/types/app.js';
+import type { AiProviderName, AssetRecord, AuthUser, RepositoryState, StoredUserRecord, StyleTaskRecord, UploadRecord } from '@/types/app.js';
 
 export type UserProfile = {
   id: string;
@@ -12,12 +12,15 @@ export type UserProfile = {
   firstName: string | null;
   lastName: string | null;
   imageUrl: string | null;
+  displayName: string | null;
+  dateOfBirth: string | null;
 };
 
 export interface AppRepository {
   readonly mode: 'file' | 'prisma';
   upsertUser(input: AuthUser): Promise<UserProfile>;
   getUserByClerkId(clerkUserId: string): Promise<UserProfile | null>;
+  updateUserProfile(userId: string, input: { displayName?: string | null; dateOfBirth?: string | null }): Promise<UserProfile>;
   saveUpload(input: Omit<UploadRecord, 'createdAt'>): Promise<UploadRecord>;
   createJob(input: {
     userId: string;
@@ -45,6 +48,7 @@ export interface AppRepository {
   resetStyleTask(jobId: string, style: StyleType): Promise<void>;
   getUpload(uploadId: string): Promise<UploadRecord | null>;
   getUploadForUser(uploadId: string, userId: string): Promise<UploadRecord | null>;
+  getAssetForUser(assetId: string, userId: string): Promise<AssetRecord | null>;
   healthCheck(): Promise<boolean>;
 }
 
@@ -67,14 +71,16 @@ function mapProvider(provider: AiProviderName) {
   return provider === 'replicate' ? PrismaAiProvider.replicate : PrismaAiProvider.mock;
 }
 
-function mapUserProfile(input: AuthUser): UserProfile {
+function mapUserProfile(input: StoredUserRecord): UserProfile {
   return {
-    id: input.clerkUserId,
+    id: input.id,
     clerkUserId: input.clerkUserId,
     email: input.email,
     firstName: input.firstName,
     lastName: input.lastName,
     imageUrl: input.imageUrl,
+    displayName: input.displayName,
+    dateOfBirth: input.dateOfBirth,
   };
 }
 
@@ -88,7 +94,16 @@ export class FileRepository implements AppRepository {
       const raw = await readFile(this.filePath, 'utf8');
       const parsed = JSON.parse(raw) as Partial<RepositoryState>;
       return {
-        users: parsed.users ?? [],
+        users: (parsed.users ?? []).map((user) => ({
+          id: user.id ?? user.clerkUserId,
+          clerkUserId: user.clerkUserId,
+          email: user.email ?? null,
+          firstName: user.firstName ?? null,
+          lastName: user.lastName ?? null,
+          imageUrl: user.imageUrl ?? null,
+          displayName: user.displayName ?? null,
+          dateOfBirth: user.dateOfBirth ?? null,
+        })),
         uploads: (parsed.uploads ?? []).map((upload) => ({
           ...upload,
           userId: upload.userId ?? (upload as UploadRecord & { deviceId?: string }).deviceId ?? 'legacy-user',
@@ -129,18 +144,43 @@ export class FileRepository implements AppRepository {
     const state = await this.readState();
     const index = state.users.findIndex((item) => item.clerkUserId === input.clerkUserId);
     if (index >= 0) {
-      state.users[index] = input;
+      state.users[index] = {
+        ...state.users[index],
+        ...input,
+      };
     } else {
-      state.users.push(input);
+      state.users.push({
+        id: input.clerkUserId,
+        clerkUserId: input.clerkUserId,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        imageUrl: input.imageUrl,
+        displayName: null,
+        dateOfBirth: null,
+      });
     }
     await this.writeState(state);
-    return mapUserProfile(input);
+    return mapUserProfile(state.users[index >= 0 ? index : state.users.length - 1]!);
   }
 
   async getUserByClerkId(clerkUserId: string) {
     const state = await this.readState();
     const user = state.users.find((item) => item.clerkUserId === clerkUserId);
     return user ? mapUserProfile(user) : null;
+  }
+
+  async updateUserProfile(userId: string, input: { displayName?: string | null; dateOfBirth?: string | null }) {
+    const state = await this.readState();
+    const user = state.users.find((item) => item.id === userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    user.displayName = input.displayName ?? null;
+    user.dateOfBirth = input.dateOfBirth ?? null;
+    await this.writeState(state);
+    return mapUserProfile(user);
   }
 
   async saveUpload(input: Omit<UploadRecord, 'createdAt'>) {
@@ -295,6 +335,20 @@ export class FileRepository implements AppRepository {
     return upload?.userId === userId ? upload : null;
   }
 
+  async getAssetForUser(assetId: string, userId: string) {
+    const state = await this.readState();
+    const asset = state.assets.find((item) => item.id === assetId);
+    if (!asset) return null;
+
+    const task = state.styleTasks.find((item) => item.id === asset.styleTaskId);
+    if (!task) return null;
+
+    const job = state.jobs.find((item) => item.id === task.jobId);
+    if (!job || job.userId !== userId) return null;
+
+    return asset;
+  }
+
   async healthCheck() {
     return true;
   }
@@ -310,6 +364,7 @@ export class FileRepository implements AppRepository {
         const asset = task.assetId ? state.assets.find((item) => item.id === task.assetId) : undefined;
         return {
           id: task.id,
+          assetId: asset?.id,
           style: task.style,
           status: task.status,
           error: task.error ?? null,
@@ -355,6 +410,8 @@ export class PrismaRepository implements AppRepository {
       firstName: user.firstName,
       lastName: user.lastName,
       imageUrl: user.imageUrl,
+      displayName: user.displayName,
+      dateOfBirth: user.dateOfBirth,
     };
   }
 
@@ -368,8 +425,31 @@ export class PrismaRepository implements AppRepository {
           firstName: user.firstName,
           lastName: user.lastName,
           imageUrl: user.imageUrl,
+          displayName: user.displayName,
+          dateOfBirth: user.dateOfBirth,
         }
       : null;
+  }
+
+  async updateUserProfile(userId: string, input: { displayName?: string | null; dateOfBirth?: string | null }) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        displayName: input.displayName ?? null,
+        dateOfBirth: input.dateOfBirth ?? null,
+      },
+    });
+
+    return {
+      id: user.id,
+      clerkUserId: user.clerkUserId,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      imageUrl: user.imageUrl,
+      displayName: user.displayName,
+      dateOfBirth: user.dateOfBirth,
+    };
   }
 
   async saveUpload(input: Omit<UploadRecord, 'createdAt'>) {
@@ -557,6 +637,32 @@ export class PrismaRepository implements AppRepository {
       : null;
   }
 
+  async getAssetForUser(assetId: string, userId: string) {
+    const asset = await this.prisma.asset.findFirst({
+      where: {
+        id: assetId,
+        styleTask: {
+          job: {
+            userId,
+          },
+        },
+      },
+    });
+
+    return asset
+      ? {
+          id: asset.id,
+          styleTaskId: asset.styleTaskId,
+          url: asset.url,
+          storageKey: asset.storageKey,
+          mimeType: asset.mimeType,
+          width: asset.width ?? undefined,
+          height: asset.height ?? undefined,
+          createdAt: asset.createdAt.toISOString(),
+        }
+      : null;
+  }
+
   async healthCheck() {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
@@ -629,6 +735,7 @@ export class PrismaRepository implements AppRepository {
       status: job.status as StyleTaskStatus,
       styles: job.styleTasks.map((task) => ({
         id: task.id,
+        assetId: task.asset?.id,
         style: task.style as StyleType,
         status: task.status as StyleTaskStatus,
         error: task.error,

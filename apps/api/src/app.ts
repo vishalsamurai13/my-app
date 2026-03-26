@@ -17,6 +17,7 @@ import { healthRoutes } from '@/modules/health/routes.js';
 import { historyRoutes } from '@/modules/history/routes.js';
 import { jobRoutes } from '@/modules/jobs/routes.js';
 import { meRoutes } from '@/modules/me/routes.js';
+import { shareRoutes } from '@/modules/share/routes.js';
 import { uploadRoutes } from '@/modules/uploads/routes.js';
 
 export async function buildApp() {
@@ -88,6 +89,7 @@ export async function buildApp() {
   await jobRoutes(app, { repository, orchestrator });
   await historyRoutes(app, { repository });
   await meRoutes(app, { repository });
+  await shareRoutes(app, { repository });
 
   return app;
 }

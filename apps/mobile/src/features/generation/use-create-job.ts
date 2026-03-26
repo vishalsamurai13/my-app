@@ -13,6 +13,7 @@ export function useCreateJob() {
   const prompt = useAppStore((state) => state.prompt);
   const selectedShape = useAppStore((state) => state.selectedShape);
   const setActiveResultStyle = useAppStore((state) => state.setActiveResultStyle);
+  const resetDraft = useAppStore((state) => state.resetDraft);
 
   return useMutation({
     mutationFn: async () => {
@@ -38,6 +39,7 @@ export function useCreateJob() {
     },
     onSuccess: ({ jobId }) => {
       setActiveResultStyle(null);
+      resetDraft();
       void queryClient.invalidateQueries({ queryKey: ['history'] });
       router.replace(`/results/${jobId}`);
     },

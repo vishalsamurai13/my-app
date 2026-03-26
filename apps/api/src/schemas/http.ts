@@ -9,6 +9,10 @@ export const jobParamsSchema = z.object({
   jobId: z.string().min(1),
 });
 
+export const assetParamsSchema = z.object({
+  assetId: z.string().min(1),
+});
+
 export const retryParamsSchema = z.object({
   jobId: z.string().min(1),
   style: styleTypeSchema,

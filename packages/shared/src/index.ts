@@ -17,7 +17,9 @@ export {
   historyResponseSchema,
   meResponseSchema,
   shapeTypeSchema,
+  shareAssetResponseSchema,
   styleTaskStatusSchema,
   styleTypeSchema,
+  updateMeBodySchema,
   uploadResponseSchema,
 } from './validators/contracts';

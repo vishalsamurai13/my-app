@@ -10,11 +10,13 @@ import { ReplicateAiProvider } from '@/lib/ai/replicate-provider.js';
 import { env } from '@/lib/config/env.js';
 import { createRepository } from '@/lib/prisma/repository.js';
 import { JobOrchestrator } from '@/lib/queue/job-orchestrator.js';
+import { authPlugin } from '@/plugins/auth.js';
 import { CloudinaryStorageService } from '@/lib/storage/cloudinary-storage.js';
 import { LocalStorageService } from '@/lib/storage/local-storage.js';
 import { healthRoutes } from '@/modules/health/routes.js';
 import { historyRoutes } from '@/modules/history/routes.js';
 import { jobRoutes } from '@/modules/jobs/routes.js';
+import { meRoutes } from '@/modules/me/routes.js';
 import { uploadRoutes } from '@/modules/uploads/routes.js';
 
 export async function buildApp() {
@@ -67,6 +69,7 @@ export async function buildApp() {
     max: 40,
     timeWindow: '1 minute',
   });
+  await authPlugin(app, { clerkSecretKey: env.CLERK_SECRET_KEY });
   await app.register(fastifyStatic, {
     root: storageRoot,
     prefix: '/storage/',
@@ -84,6 +87,7 @@ export async function buildApp() {
   await uploadRoutes(app, { repository, storage });
   await jobRoutes(app, { repository, orchestrator });
   await historyRoutes(app, { repository });
+  await meRoutes(app, { repository });
 
   return app;
 }

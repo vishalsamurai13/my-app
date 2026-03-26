@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { getHistory } from '@/lib/api/client';
+import { getMe } from '@/lib/api/client';
 import { useClerkAuthState } from '@/lib/auth/clerk';
 
-export function useHistory() {
+export function useMe() {
   const { getRequiredToken, isSignedIn } = useClerkAuthState();
 
   return useQuery({
-    queryKey: ['history', isSignedIn],
-    queryFn: async () => getHistory(await getRequiredToken()),
+    queryKey: ['me', isSignedIn],
+    queryFn: async () => getMe(await getRequiredToken()),
     enabled: Boolean(isSignedIn),
   });
 }

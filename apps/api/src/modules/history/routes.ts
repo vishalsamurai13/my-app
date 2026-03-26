@@ -1,16 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import type { AppRepository } from '@/lib/prisma/repository.js';
-import { deviceHeaderSchema } from '@/schemas/http.js';
 
 export async function historyRoutes(
   app: FastifyInstance,
   options: { repository: AppRepository },
 ) {
-  app.get('/history', async (request, reply) => {
-    const { 'x-device-id': deviceId } = deviceHeaderSchema.parse(request.headers);
+  app.get('/history', { preHandler: app.authenticate }, async (request) => {
+    const authUser = request.authUser!;
+    const user = await options.repository.upsertUser(authUser);
 
     return {
-      jobs: await options.repository.listJobsByDevice(deviceId),
+      jobs: await options.repository.listJobsByUser(user.id),
     };
   });
 }

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ai-clipart/shared": "1.0.0",
+    "@clerk/backend": "^3.2.2",
     "@fastify/cors": "^11.1.0",
     "@fastify/multipart": "^9.2.1",
     "@fastify/rate-limit": "^10.3.0",
@@ -28,8 +29,8 @@
     "zod": "^4.1.5"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
     "@types/mime-types": "^3.0.1",
+    "@types/node": "^24.3.0",
     "typescript": "~5.9.2",
     "vitest": "^3.2.4"
   }

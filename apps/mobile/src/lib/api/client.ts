@@ -2,12 +2,39 @@ import {
   createJobResponseSchema,
   generationJobSchema,
   historyResponseSchema,
+  meResponseSchema,
   uploadResponseSchema,
+  type ShapeType,
   type StyleType,
 } from '@ai-clipart/shared';
 import { API_BASE_URL } from '@/constants/config';
 
 const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+
+function redactHeaders(headers?: HeadersInit) {
+  if (!headers) return headers;
+
+  if (headers instanceof Headers) {
+    return Object.fromEntries(
+      Array.from(headers.entries()).map(([key, value]) => [key, key.toLowerCase() === 'authorization' ? 'Bearer [redacted]' : value]),
+    );
+  }
+
+  if (Array.isArray(headers)) {
+    return headers.map(([key, value]) => [key, key.toLowerCase() === 'authorization' ? 'Bearer [redacted]' : value]);
+  }
+
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [key, key.toLowerCase() === 'authorization' ? 'Bearer [redacted]' : value]),
+  );
+}
+
+function withAuthHeaders(token?: string | null, headers?: HeadersInit) {
+  return {
+    ...(headers ?? {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 async function request<T>(path: string, init?: RequestInit) {
   const url = `${API_BASE_URL}${path}`;
@@ -16,7 +43,7 @@ async function request<T>(path: string, init?: RequestInit) {
     console.log('[api:request]', {
       url,
       method: init?.method ?? 'GET',
-      headers: init?.headers,
+      headers: redactHeaders(init?.headers),
       bodyType:
         init?.body instanceof FormData
           ? 'FormData'
@@ -27,7 +54,6 @@ async function request<T>(path: string, init?: RequestInit) {
   }
 
   let response: Response;
-
   try {
     response = await fetch(url, init);
   } catch (error) {
@@ -37,13 +63,11 @@ async function request<T>(path: string, init?: RequestInit) {
         message: error instanceof Error ? error.message : 'Unknown network failure',
       });
     }
-
     throw error;
   }
 
   if (!response.ok) {
     const message = await response.text();
-
     if (isDev) {
       console.log('[api:response-error]', {
         url,
@@ -51,7 +75,6 @@ async function request<T>(path: string, init?: RequestInit) {
         message,
       });
     }
-
     throw new Error(message || 'Request failed');
   }
 
@@ -72,7 +95,7 @@ export async function uploadImage(file: {
   uri: string;
   fileName: string;
   mimeType: string;
-  deviceId: string;
+  token: string;
 }) {
   const formData = new FormData();
   formData.append('image', {
@@ -83,9 +106,7 @@ export async function uploadImage(file: {
 
   const data = await request('/uploads', {
     method: 'POST',
-    headers: {
-      'x-device-id': file.deviceId,
-    },
+    headers: withAuthHeaders(file.token),
     body: formData,
   });
 
@@ -95,50 +116,50 @@ export async function uploadImage(file: {
 export async function createJob(input: {
   uploadId: string;
   styles: StyleType[];
-  deviceId: string;
+  token: string;
+  prompt?: string;
+  shape?: ShapeType;
 }) {
   const data = await request('/jobs', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-device-id': input.deviceId,
-    },
+    headers: withAuthHeaders(input.token, { 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       uploadId: input.uploadId,
       styles: input.styles,
+      prompt: input.prompt,
+      shape: input.shape,
     }),
   });
 
   return createJobResponseSchema.parse(data);
 }
 
-export async function getJob(jobId: string, deviceId: string) {
+export async function getJob(jobId: string, token: string) {
   const data = await request(`/jobs/${jobId}`, {
-    headers: {
-      'x-device-id': deviceId,
-    },
+    headers: withAuthHeaders(token),
   });
-
   return generationJobSchema.parse(data);
 }
 
-export async function retryStyle(jobId: string, style: StyleType, deviceId: string) {
+export async function retryStyle(jobId: string, style: StyleType, token: string) {
   const data = await request(`/jobs/${jobId}/styles/${style}/retry`, {
     method: 'POST',
-    headers: {
-      'x-device-id': deviceId,
-    },
+    headers: withAuthHeaders(token),
   });
 
   return generationJobSchema.parse(data);
 }
 
-export async function getHistory(deviceId: string) {
+export async function getHistory(token: string) {
   const data = await request('/history', {
-    headers: {
-      'x-device-id': deviceId,
-    },
+    headers: withAuthHeaders(token),
   });
-
   return historyResponseSchema.parse(data);
+}
+
+export async function getMe(token: string) {
+  const data = await request('/me', {
+    headers: withAuthHeaders(token),
+  });
+  return meResponseSchema.parse(data);
 }

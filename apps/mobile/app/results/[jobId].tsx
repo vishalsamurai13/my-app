@@ -1,142 +1,161 @@
-import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { useAuth } from '@clerk/expo';
+import { useQueryClient } from '@tanstack/react-query';
 import { STYLE_LABELS } from '@ai-clipart/shared';
-import { Header } from '@/components/layout/header';
+import { Image } from 'expo-image';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef } from 'react';
+import { Alert, Pressable, Text, View } from 'react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
-import { SectionCard } from '@/components/ui/section-card';
 import { useJob } from '@/features/generation/use-job';
-import { saveRemoteFile, shareRemoteFile } from '@/features/share-download/file-actions';
+import { saveRemoteFileToGallery, shareRemoteFile } from '@/features/share-download/file-actions';
+import { useAppStore } from '@/lib/store/app-store';
 import { resolveAssetUrl } from '@/utils/asset-url';
 
 export default function ResultScreen() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { isSignedIn } = useAuth();
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
   const { data, error, isLoading, retryStyle } = useJob(jobId);
+  const activeResultStyle = useAppStore((state) => state.activeResultStyle);
+  const setActiveResultStyle = useAppStore((state) => state.setActiveResultStyle);
 
-  async function handleDownload(url: string, style: string) {
+  const firstSuccessfulStyle = useMemo(
+    () => data?.styles.find((style) => style.status === 'success' && style.url),
+    [data?.styles],
+  );
+  const selected = data?.styles.find((style) => style.style === activeResultStyle) ?? firstSuccessfulStyle ?? data?.styles[0];
+  const selectedUrl = resolveAssetUrl(selected?.url);
+  const isInFlight = data?.styles.some((style) => style.status === 'queued' || style.status === 'processing');
+  const hasErrorStyles = data?.styles.some((style) => style.status === 'error');
+  const shownErrorIdsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (!activeResultStyle && firstSuccessfulStyle) {
+      setActiveResultStyle(firstSuccessfulStyle.style);
+    }
+  }, [activeResultStyle, firstSuccessfulStyle, setActiveResultStyle]);
+
+  useEffect(() => {
+    if (data && !isInFlight) {
+      void queryClient.invalidateQueries({ queryKey: ['history'] });
+    }
+  }, [data, isInFlight, queryClient]);
+
+  useEffect(() => {
+    const freshErrors =
+      data?.styles.filter((style) => style.status === 'error' && !shownErrorIdsRef.current.includes(style.id)) ?? [];
+
+    if (freshErrors.length > 0) {
+      shownErrorIdsRef.current = [...shownErrorIdsRef.current, ...freshErrors.map((style) => style.id)];
+      const summary = freshErrors.map((style) => `${STYLE_LABELS[style.style]} failed.`).join('\n');
+      Alert.alert('Generation issue', summary);
+    }
+  }, [data?.styles]);
+
+  const successfulStyles = data?.styles.filter((style) => style.url) ?? [];
+  const previewCount = successfulStyles.length || (data?.styles.length ?? 0);
+  const previewWidth = previewCount <= 1 ? '100%' : previewCount === 2 ? '48%' : previewCount === 3 ? '31.5%' : '23.5%';
+
+  async function handleDownload() {
+    if (!selectedUrl || !selected) return;
     try {
-      await saveRemoteFile(url, `${style}-${jobId}.png`);
-      Alert.alert('Saved', 'The generated image was downloaded to the app cache.');
+      await saveRemoteFileToGallery(selectedUrl, `${selected.style}-${jobId}.png`);
+      Alert.alert('Saved', 'The generated image was saved to your gallery.');
     } catch (saveError) {
       Alert.alert('Download failed', saveError instanceof Error ? saveError.message : 'Unable to save file.');
     }
   }
 
-  async function handleShare(url: string, style: string) {
+  async function handleShare() {
+    if (!selectedUrl || !selected) return;
     try {
-      await shareRemoteFile(url, `${style}-${jobId}.png`);
+      await shareRemoteFile(selectedUrl, `${selected.style}-${jobId}.png`);
     } catch (shareError) {
       Alert.alert('Share failed', shareError instanceof Error ? shareError.message : 'Unable to share file.');
     }
   }
 
   return (
-    <Screen>
-      <Header
-        title="Results"
-        subtitle="Each style runs independently. Failed styles can be retried without restarting the full batch."
-      />
-
-      {isLoading ? <Text style={styles.loadingText}>Checking job status…</Text> : null}
-      {error ? (
-        <SectionCard>
-          <Text style={styles.errorText}>
-            {error instanceof Error ? error.message : 'Unable to load the generation job.'}
-          </Text>
-        </SectionCard>
+    <Screen backgroundColor="#121212" contentClassName="gap-[18px] pt-6 pb-10">
+      <View className="relative flex-row items-center justify-center">
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          className="absolute left-0 h-11 w-11 items-center justify-center rounded-full bg-border-card">
+          <ChevronLeft color="#ffffff" size={22} />
+        </Pressable>
+        <Text className="text-center text-[34px] font-black text-primary">Results</Text>
+      </View>
+      {!isSignedIn ? <Text className="text-center text-muted">Sign in is required to view protected results.</Text> : null}
+      {isLoading ? <Text className="text-center text-muted">Loading your generation job…</Text> : null}
+      {!isLoading && isInFlight ? (
+        <Text className="text-center text-muted">Your styles are still processing. Completed outputs will appear one by one.</Text>
       ) : null}
+      {!isLoading && !isInFlight && hasErrorStyles ? (
+        <Text className="text-center text-muted">Some styles failed. Retry only the failed ones from the strip below.</Text>
+      ) : null}
+      {error ? <Text className="text-center text-error">{error instanceof Error ? error.message : 'Unable to load this job.'}</Text> : null}
 
-      <View style={styles.list}>
+      {selectedUrl ? (
+        <Image source={{ uri: selectedUrl }} style={{ width: '100%', aspectRatio: 1, borderRadius: 28 }} />
+      ) : (
+        <View className="w-full aspect-square items-center justify-center gap-2.5 rounded-[28px] border border-border-card bg-card px-7">
+          <Text className="text-[20px] font-extrabold text-primary">{selected?.status === 'error' ? 'Preview unavailable' : 'Generating preview'}</Text>
+          <Text className="text-center leading-[22px] text-muted">
+            {selected?.status === 'error'
+              ? 'Retry this style from the cards below.'
+              : 'The first completed style will automatically appear here.'}
+          </Text>
+        </View>
+      )}
+
+      <View className="flex-row flex-wrap gap-3">
         {data?.styles.map((style) => {
-          const assetUrl = resolveAssetUrl(style.url);
+          const uri = resolveAssetUrl(style.url);
+          const active = selected?.id === style.id;
 
           return (
-          <SectionCard key={style.id}>
-            <View style={styles.cardBody}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{STYLE_LABELS[style.style]}</Text>
-                <Text style={styles.cardStatus}>{style.status}</Text>
-              </View>
-
-              {assetUrl ? (
-                <Image source={{ uri: assetUrl }} style={styles.resultImage} />
+            <Pressable
+              key={style.id}
+              className={`rounded-[18px] border bg-card p-1.5 ${active ? 'border-border-accent' : 'border-border-card'}`}
+              style={{ width: previewWidth }}
+              onPress={() => setActiveResultStyle(style.style)}>
+              {uri ? (
+                <Image source={{ uri }} style={{ width: '100%', aspectRatio: 1, borderRadius: 12, marginBottom: 8, backgroundColor: '#2b2340' }} />
               ) : (
-                <View style={styles.placeholder} />
+                <View className="mb-2 aspect-square w-full items-center justify-center rounded-xl bg-thumb-bg">
+                  <Text className="text-[11px] font-bold text-[#b9b2c7]">
+                    {style.status === 'error' ? 'Failed' : style.status === 'processing' ? 'Processing' : 'Queued'}
+                  </Text>
+                </View>
               )}
-
-              {style.error ? <Text style={styles.errorText}>{style.error}</Text> : null}
-
-              <View style={styles.actionRow}>
-                {style.status === 'error' ? (
-                  <Button variant="secondary" onPress={() => retryStyle(style.style)}>
-                    Retry style
-                  </Button>
-                ) : null}
-                {assetUrl ? (
-                  <>
-                    <Button variant="ghost" onPress={() => handleDownload(assetUrl, style.style)}>
-                      Download
-                    </Button>
-                    <Button variant="ghost" onPress={() => handleShare(assetUrl, style.style)}>
-                      Share
-                    </Button>
-                  </>
-                ) : null}
-              </View>
-            </View>
-          </SectionCard>
-        )})}
+              <Text className="text-center text-lg font-bold text-primary">{STYLE_LABELS[style.style]}</Text>
+              <Text className="mt-1 text-center text-xs text-muted">{style.status === 'success' ? 'Ready' : style.status}</Text>
+              {style.status === 'error' ? (
+                <Pressable onPress={() => retryStyle(style.style)} className="self-center">
+                  <Text className="mt-1.5 text-center font-bold text-[#c9b0ff]">Retry</Text>
+                </Pressable>
+              ) : null}
+            </Pressable>
+          );
+        })}
       </View>
+
+      <View className="flex-row gap-3">
+        <Button variant="secondary" onPress={handleShare} disabled={!selectedUrl}>
+          Share
+        </Button>
+        <Button onPress={handleDownload} disabled={!selectedUrl}>
+          Download
+        </Button>
+      </View>
+
+      <Button variant="outline" onPress={() => router.push('/create' as never)}>
+        Generate New Images
+      </Button>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingText: {
-    fontSize: 16,
-    color: '#57534e',
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#b3261e',
-  },
-  list: {
-    rowGap: 16,
-  },
-  cardBody: {
-    rowGap: 16,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#101418',
-  },
-  cardStatus: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: '#78716c',
-  },
-  resultImage: {
-    width: '100%',
-    height: 220,
-    borderRadius: 24,
-  },
-  placeholder: {
-    height: 220,
-    borderRadius: 24,
-    backgroundColor: '#e6dccd',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-});

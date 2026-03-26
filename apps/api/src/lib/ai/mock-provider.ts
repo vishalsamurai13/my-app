@@ -4,9 +4,12 @@ import type { AiProvider, GeneratedVariant } from './provider.js';
 const STYLE_COLORS: Record<StyleType, string> = {
   cartoon: '#ff8744',
   anime: '#ff5d8f',
+  illustration: '#7b61ff',
   pixel: '#4e7aff',
-  flat: '#3fa77b',
   sketch: '#54483d',
+  fantasy: '#7e3af2',
+  comic: '#f59e0b',
+  watercolor: '#38bdf8',
 };
 
 export class MockAiProvider implements AiProvider {
@@ -16,6 +19,7 @@ export class MockAiProvider implements AiProvider {
   async generateStyleVariant(input: {
     style: StyleType;
     promptVersion: string;
+    prompt?: string | null;
     sourceImageUrl: string;
   }): Promise<GeneratedVariant> {
     const color = STYLE_COLORS[input.style];
@@ -28,7 +32,7 @@ export class MockAiProvider implements AiProvider {
         <rect x="284" y="590" width="456" height="232" rx="116" fill="${color}" opacity="0.35" />
         <text x="512" y="210" font-size="58" text-anchor="middle" font-family="Arial" fill="#101418">AI Clipart Generator</text>
         <text x="512" y="904" font-size="86" font-weight="700" text-anchor="middle" font-family="Arial" fill="#101418">${label}</text>
-        <text x="512" y="962" font-size="28" text-anchor="middle" font-family="Arial" fill="#54483d">${input.promptVersion}</text>
+        <text x="512" y="962" font-size="28" text-anchor="middle" font-family="Arial" fill="#54483d">${(input.prompt || input.promptVersion).slice(0, 48)}</text>
       </svg>
     `;
 

@@ -3,14 +3,14 @@ import { v4 as uuid } from 'uuid';
 import type { FastifyInstance } from 'fastify';
 import type { AppRepository } from '@/lib/prisma/repository.js';
 import type { StorageProvider } from '@/lib/storage/provider.js';
-import { deviceHeaderSchema } from '@/schemas/http.js';
 
 export async function uploadRoutes(
   app: FastifyInstance,
   options: { repository: AppRepository; storage: StorageProvider },
 ) {
-  app.post('/uploads', async (request, reply) => {
-    const { 'x-device-id': deviceId } = deviceHeaderSchema.parse(request.headers);
+  app.post('/uploads', { preHandler: app.authenticate }, async (request, reply) => {
+    const authUser = request.authUser!;
+    const user = await options.repository.upsertUser(authUser);
 
     const file = await request.file();
 
@@ -38,14 +38,14 @@ export async function uploadRoutes(
 
     const upload = await options.repository.saveUpload({
       id: uuid(),
-      deviceId,
+      userId: user.id,
       storageKey: stored.storageKey,
       url: stored.url,
       mimeType,
       fileName: file.filename || `upload-${Date.now()}.${extension}`,
     });
 
-    request.log.info({ uploadId: upload.id, deviceId }, 'upload created');
+    request.log.info({ uploadId: upload.id, userId: user.id }, 'upload created');
 
     return {
       uploadId: upload.id,

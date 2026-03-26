@@ -1,27 +1,10 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-export function Header({ title, subtitle }: { title: string; subtitle: string }) {
+export function Header({ title, subtitle, align = 'left' }: { title: string; subtitle?: string; align?: 'left' | 'center' }) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+    <View className={`mb-6 gap-2 ${align === 'center' ? 'items-center' : ''}`.trim()}>
+      <Text className="text-4xl font-black text-primary">{title}</Text>
+      {subtitle ? <Text className="text-base leading-6 text-muted text-center">{subtitle}</Text> : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 24,
-    rowGap: 8,
-  },
-  title: {
-    fontSize: 38,
-    fontWeight: '900',
-    color: '#101418',
-  },
-  subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#57534e',
-  },
-});

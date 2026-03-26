@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { styleTypeSchema } from '@ai-clipart/shared';
 
-export const deviceHeaderSchema = z.object({
-  'x-device-id': z.string().min(1),
+export const authorizationHeaderSchema = z.object({
+  authorization: z.string().min(1),
 });
 
 export const jobParamsSchema = z.object({

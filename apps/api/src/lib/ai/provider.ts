@@ -9,12 +9,27 @@ export type GeneratedVariant = {
   providerJobId?: string;
 };
 
+export class AiProviderError extends Error {
+  constructor(
+    message: string,
+    readonly options?: {
+      retryable?: boolean;
+      retryAfterMs?: number;
+      code?: string;
+    },
+  ) {
+    super(message);
+    this.name = 'AiProviderError';
+  }
+}
+
 export interface AiProvider {
   name: AiProviderName;
   model: string;
   generateStyleVariant(input: {
     style: StyleType;
     promptVersion: string;
+    prompt?: string | null;
     sourceImageUrl: string;
   }): Promise<GeneratedVariant>;
 }

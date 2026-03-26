@@ -10,9 +10,12 @@ datasource db {
 enum StyleType {
   cartoon
   anime
+  illustration
   pixel
-  flat
   sketch
+  fantasy
+  comic
+  watercolor
 }
 
 enum StyleTaskStatus {
@@ -27,37 +30,44 @@ enum AiProvider {
   replicate
 }
 
-model Device {
-  id        String          @id
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  uploads   Upload[]
-  jobs      GenerationJob[]
+model User {
+  id          String          @id
+  clerkUserId String          @unique
+  email       String?
+  firstName   String?
+  lastName    String?
+  imageUrl    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  uploads     Upload[]
+  jobs        GenerationJob[]
 }
 
 model Upload {
   id         String          @id
-  deviceId   String
+  userId     String
   storageKey String
   url        String
   mimeType   String
   fileName   String
   createdAt  DateTime        @default(now())
-  device     Device          @relation(fields: [deviceId], references: [id])
+  user       User            @relation(fields: [userId], references: [id])
   jobs       GenerationJob[]
 }
 
 model GenerationJob {
   id            String        @id
-  deviceId      String
+  userId        String
   uploadId      String
   promptVersion String
+  prompt        String?
+  shape         String?
   provider      AiProvider
   model         String
   status        StyleTaskStatus
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-  device        Device        @relation(fields: [deviceId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
   upload        Upload        @relation(fields: [uploadId], references: [id])
   styleTasks    StyleTask[]
 }

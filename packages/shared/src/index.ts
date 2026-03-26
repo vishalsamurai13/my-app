@@ -1,9 +1,10 @@
 export { STYLE_LABELS, STYLE_TYPES } from './constants/styles';
 
-export { STYLE_TASK_STATUSES } from './domain/generation';
+export { SHAPE_TYPES, STYLE_TASK_STATUSES } from './domain/generation';
 export type {
   GeneratedAsset,
   GenerationJob,
+  ShapeType,
   StyleTaskStatus,
   StyleType,
 } from './domain/generation';
@@ -14,6 +15,8 @@ export {
   createJobResponseSchema,
   generationJobSchema,
   historyResponseSchema,
+  meResponseSchema,
+  shapeTypeSchema,
   styleTaskStatusSchema,
   styleTypeSchema,
   uploadResponseSchema,

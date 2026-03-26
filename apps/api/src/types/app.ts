@@ -2,9 +2,17 @@ import type { GenerationJob, StyleType, StyleTaskStatus } from '@ai-clipart/shar
 
 export type AiProviderName = 'mock' | 'replicate';
 
+export type AuthUser = {
+  clerkUserId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  imageUrl: string | null;
+};
+
 export type UploadRecord = {
   id: string;
-  deviceId: string;
+  userId: string;
   storageKey: string;
   url: string;
   mimeType: string;
@@ -38,7 +46,7 @@ export type AssetRecord = {
 };
 
 export type RepositoryState = {
-  devices: string[];
+  users: AuthUser[];
   uploads: UploadRecord[];
   jobs: GenerationJob[];
   styleTasks: StyleTaskRecord[];

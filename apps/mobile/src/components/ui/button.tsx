@@ -1,11 +1,15 @@
 import type { PropsWithChildren } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, Text } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type ButtonProps = PropsWithChildren<{
   onPress?: () => void;
   disabled?: boolean;
   loading?: boolean;
-  variant?: 'primary' | 'secondary' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'outline';
+  fullWidth?: boolean;
+  className?: string;
+  textClassName?: string;
 }>;
 
 export function Button({
@@ -14,61 +18,48 @@ export function Button({
   disabled,
   loading,
   variant = 'primary',
+  fullWidth = true,
+  className,
+  textClassName,
 }: ButtonProps) {
-  const containerStyles = {
-    primary: styles.primaryContainer,
-    secondary: styles.secondaryContainer,
-    ghost: styles.ghostContainer,
-  };
+  const content = loading ? (
+    <ActivityIndicator color={variant === 'ghost' ? '#161616' : '#ffffff'} />
+  ) : (
+    <Text className={`text-base font-bold ${variant === 'ghost' ? 'text-dark' : 'text-primary'} ${textClassName ?? ''}`.trim()}>
+      {children}
+    </Text>
+  );
 
-  const textStyles = {
-    primary: styles.lightText,
-    secondary: styles.lightText,
-    ghost: styles.darkText,
-  };
+  if (variant === 'primary') {
+    return (
+      <Pressable
+        className={`${fullWidth ? 'self-stretch' : ''} overflow-hidden rounded-full ${disabled || loading ? 'opacity-[0.55]' : ''} ${className ?? ''}`.trim()}
+        disabled={disabled || loading}
+        onPress={onPress}>
+        <LinearGradient
+          colors={['#7c3aed', '#a855f7']}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          className="min-h-[58px] items-center justify-center px-5"
+          style={{ borderRadius: 999 }}>
+          {content}
+        </LinearGradient>
+      </Pressable>
+    );
+  }
+
+  const variantClasses = {
+    secondary: 'bg-panel',
+    ghost: 'bg-ghost-bg',
+    outline: 'border border-brand bg-transparent',
+  }[variant];
 
   return (
     <Pressable
-      style={[styles.base, containerStyles[variant], disabled || loading ? styles.disabled : null]}
+      className={`min-h-[58px] items-center justify-center rounded-full px-5 ${fullWidth ? 'self-stretch' : ''} ${variantClasses ?? ''} ${disabled || loading ? 'opacity-[0.55]' : ''} ${className ?? ''}`.trim()}
       disabled={disabled || loading}
       onPress={onPress}>
-      {loading ? (
-        <ActivityIndicator color={variant === 'ghost' ? '#101418' : '#ffffff'} />
-      ) : (
-        <Text style={[styles.label, textStyles[variant]]}>{children}</Text>
-      )}
+      {content}
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    minHeight: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-    paddingHorizontal: 16,
-  },
-  primaryContainer: {
-    backgroundColor: '#d65a31',
-  },
-  secondaryContainer: {
-    backgroundColor: '#345c4d',
-  },
-  ghostContainer: {
-    backgroundColor: '#e6dccd',
-  },
-  disabled: {
-    opacity: 0.6,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  lightText: {
-    color: '#ffffff',
-  },
-  darkText: {
-    color: '#101418',
-  },
-});

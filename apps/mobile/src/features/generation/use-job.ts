@@ -1,21 +1,15 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { StyleType } from '@ai-clipart/shared';
 import { getJob, retryStyle } from '@/lib/api/client';
-import { useAppStore } from '@/lib/store/app-store';
+import { useClerkAuthState } from '@/lib/auth/clerk';
 
 export function useJob(jobId: string) {
-  const deviceId = useAppStore((state) => state.deviceId);
+  const { getRequiredToken, isSignedIn } = useClerkAuthState();
 
   const query = useQuery({
-    queryKey: ['job', jobId, deviceId],
-    queryFn: () => {
-      if (!deviceId) {
-        throw new Error('Missing device id.');
-      }
-
-      return getJob(jobId, deviceId);
-    },
-    enabled: Boolean(jobId && deviceId),
+    queryKey: ['job', jobId, isSignedIn],
+    queryFn: async () => getJob(jobId, await getRequiredToken()),
+    enabled: Boolean(jobId && isSignedIn),
     refetchInterval: (query) => {
       const job = query.state.data;
       const inFlight = job?.styles.some((style) => style.status === 'queued' || style.status === 'processing');
@@ -25,11 +19,7 @@ export function useJob(jobId: string) {
 
   const retryMutation = useMutation({
     mutationFn: async (style: StyleType) => {
-      if (!deviceId) {
-        throw new Error('Missing device id.');
-      }
-
-      return retryStyle(jobId, style, deviceId);
+      return retryStyle(jobId, style, await getRequiredToken());
     },
     onSuccess: (data) => {
       query.refetch();

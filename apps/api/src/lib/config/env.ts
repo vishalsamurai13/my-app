@@ -1,5 +1,14 @@
-import 'dotenv/config';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { config as loadEnv } from 'dotenv';
 import { z } from 'zod';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const apiRoot = resolve(currentDir, '../../..');
+const workspaceRoot = resolve(currentDir, '../../../../..');
+
+loadEnv({ path: resolve(workspaceRoot, '.env') });
+loadEnv({ path: resolve(apiRoot, '.env'), override: false });
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
@@ -8,6 +17,7 @@ const envSchema = z.object({
   PROMPT_VERSION: z.string().default('v1'),
   REPOSITORY_MODE: z.enum(['file', 'prisma']).default('file'),
   DATABASE_URL: z.string().optional(),
+  CLERK_SECRET_KEY: z.string().optional(),
   REPLICATE_API_TOKEN: z.string().optional(),
   REPLICATE_MODEL: z.string().optional(),
   REPLICATE_VERSION: z.string().optional(),

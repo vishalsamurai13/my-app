@@ -1,11 +1,13 @@
 import { extension as mimeExtension } from 'mime-types';
 import type { StyleType } from '@ai-clipart/shared';
+import { AiProviderError } from '@/lib/ai/provider.js';
 import type { AiProvider } from '@/lib/ai/provider.js';
 import type { AppRepository } from '@/lib/prisma/repository.js';
 import type { StorageProvider } from '@/lib/storage/provider.js';
 
 export class JobOrchestrator {
   private readonly inFlight = new Set<string>();
+  private readonly maxStyleAttempts = 2;
 
   constructor(
     private readonly repository: AppRepository,
@@ -59,9 +61,10 @@ export class JobOrchestrator {
       });
 
       try {
-        const generated = await this.aiProvider.generateStyleVariant({
+        const generated = await this.generateWithRetry({
           style: style.style,
           promptVersion: job.promptVersion,
+          prompt: job.prompt,
           sourceImageUrl: upload.url,
         });
 
@@ -87,6 +90,7 @@ export class JobOrchestrator {
           status: 'success',
           providerJobId: generated.providerJobId,
           completedAt: new Date().toISOString(),
+          error: null,
         });
       } catch (error) {
         await this.repository.updateStyleTask({
@@ -99,5 +103,34 @@ export class JobOrchestrator {
         });
       }
     }
+  }
+
+  private async generateWithRetry(input: {
+    style: StyleType;
+    promptVersion: string;
+    prompt?: string | null;
+    sourceImageUrl: string;
+  }) {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < this.maxStyleAttempts; attempt += 1) {
+      try {
+        return await this.aiProvider.generateStyleVariant(input);
+      } catch (error) {
+        lastError = error;
+        const canRetry = error instanceof AiProviderError && error.options?.retryable && attempt < this.maxStyleAttempts - 1;
+        const retryAfterMs = error instanceof AiProviderError ? error.options?.retryAfterMs ?? 1_500 : 0;
+
+        if (!canRetry) {
+          throw error;
+        }
+
+        if (retryAfterMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
+        }
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Generation failed.');
   }
 }

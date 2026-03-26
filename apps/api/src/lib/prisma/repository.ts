@@ -1,30 +1,37 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { PrismaClient, AiProvider as PrismaAiProvider } from '@prisma/client';
-import type { GenerationJob, StyleType, StyleTaskStatus } from '@ai-clipart/shared';
+import { AiProvider as PrismaAiProvider, PrismaClient } from '@prisma/client';
+import type { GenerationJob, ShapeType, StyleType, StyleTaskStatus } from '@ai-clipart/shared';
 import { v4 as uuid } from 'uuid';
-import type {
-  AiProviderName,
-  AssetRecord,
-  RepositoryState,
-  StyleTaskRecord,
-  UploadRecord,
-} from '@/types/app.js';
+import type { AiProviderName, AssetRecord, AuthUser, RepositoryState, StyleTaskRecord, UploadRecord } from '@/types/app.js';
+
+export type UserProfile = {
+  id: string;
+  clerkUserId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  imageUrl: string | null;
+};
 
 export interface AppRepository {
   readonly mode: 'file' | 'prisma';
+  upsertUser(input: AuthUser): Promise<UserProfile>;
+  getUserByClerkId(clerkUserId: string): Promise<UserProfile | null>;
   saveUpload(input: Omit<UploadRecord, 'createdAt'>): Promise<UploadRecord>;
   createJob(input: {
-    deviceId: string;
+    userId: string;
     uploadId: string;
     promptVersion: string;
+    prompt?: string;
+    shape?: ShapeType;
     provider: AiProviderName;
     model: string;
     styles: StyleType[];
   }): Promise<GenerationJob>;
   getJob(jobId: string): Promise<GenerationJob | null>;
-  getJobForDevice(jobId: string, deviceId: string): Promise<GenerationJob | null>;
-  listJobsByDevice(deviceId: string): Promise<GenerationJob[]>;
+  getJobForUser(jobId: string, userId: string): Promise<GenerationJob | null>;
+  listJobsByUser(userId: string): Promise<GenerationJob[]>;
   updateStyleTask(input: {
     jobId: string;
     style: StyleType;
@@ -37,7 +44,7 @@ export interface AppRepository {
   attachAsset(input: Omit<AssetRecord, 'createdAt' | 'id'>): Promise<void>;
   resetStyleTask(jobId: string, style: StyleType): Promise<void>;
   getUpload(uploadId: string): Promise<UploadRecord | null>;
-  getUploadForDevice(uploadId: string, deviceId: string): Promise<UploadRecord | null>;
+  getUploadForUser(uploadId: string, userId: string): Promise<UploadRecord | null>;
   healthCheck(): Promise<boolean>;
 }
 
@@ -46,20 +53,29 @@ function now() {
 }
 
 function deriveJobStatus(tasks: StyleTaskRecord[]): StyleTaskStatus {
-  if (tasks.every((task) => task.status === 'success')) {
-    return 'success';
-  }
-  if (tasks.some((task) => task.status === 'processing')) {
-    return 'processing';
-  }
-  if (tasks.some((task) => task.status === 'error')) {
-    return 'error';
-  }
+  if (tasks.every((task) => task.status === 'success')) return 'success';
+  if (tasks.some((task) => task.status === 'processing')) return 'processing';
+  if (tasks.some((task) => task.status === 'error')) return 'error';
   return 'queued';
+}
+
+function normalizeLegacyStyle(style: string) {
+  return style === 'flat' ? 'illustration' : style;
 }
 
 function mapProvider(provider: AiProviderName) {
   return provider === 'replicate' ? PrismaAiProvider.replicate : PrismaAiProvider.mock;
+}
+
+function mapUserProfile(input: AuthUser): UserProfile {
+  return {
+    id: input.clerkUserId,
+    clerkUserId: input.clerkUserId,
+    email: input.email,
+    firstName: input.firstName,
+    lastName: input.lastName,
+    imageUrl: input.imageUrl,
+  };
 }
 
 export class FileRepository implements AppRepository {
@@ -70,10 +86,32 @@ export class FileRepository implements AppRepository {
   private async readState() {
     try {
       const raw = await readFile(this.filePath, 'utf8');
-      return JSON.parse(raw) as RepositoryState;
+      const parsed = JSON.parse(raw) as Partial<RepositoryState>;
+      return {
+        users: parsed.users ?? [],
+        uploads: (parsed.uploads ?? []).map((upload) => ({
+          ...upload,
+          userId: upload.userId ?? (upload as UploadRecord & { deviceId?: string }).deviceId ?? 'legacy-user',
+        })),
+        jobs: (parsed.jobs ?? []).map((job) => ({
+          ...job,
+          userId: job.userId ?? (job as GenerationJob & { deviceId?: string }).deviceId ?? 'legacy-user',
+          prompt: job.prompt ?? null,
+          shape: job.shape ?? null,
+          styles: job.styles.map((style) => ({
+            ...style,
+            style: normalizeLegacyStyle(style.style) as StyleType,
+          })),
+        })),
+        styleTasks: (parsed.styleTasks ?? []).map((task) => ({
+          ...task,
+          style: normalizeLegacyStyle(task.style) as StyleType,
+        })),
+        assets: parsed.assets ?? [],
+      } satisfies RepositoryState;
     } catch {
       return {
-        devices: [],
+        users: [],
         uploads: [],
         jobs: [],
         styleTasks: [],
@@ -87,19 +125,38 @@ export class FileRepository implements AppRepository {
     await writeFile(this.filePath, JSON.stringify(state, null, 2));
   }
 
+  async upsertUser(input: AuthUser) {
+    const state = await this.readState();
+    const index = state.users.findIndex((item) => item.clerkUserId === input.clerkUserId);
+    if (index >= 0) {
+      state.users[index] = input;
+    } else {
+      state.users.push(input);
+    }
+    await this.writeState(state);
+    return mapUserProfile(input);
+  }
+
+  async getUserByClerkId(clerkUserId: string) {
+    const state = await this.readState();
+    const user = state.users.find((item) => item.clerkUserId === clerkUserId);
+    return user ? mapUserProfile(user) : null;
+  }
+
   async saveUpload(input: Omit<UploadRecord, 'createdAt'>) {
     const state = await this.readState();
     const created: UploadRecord = { ...input, createdAt: now() };
     state.uploads.push(created);
-    if (!state.devices.includes(input.deviceId)) state.devices.push(input.deviceId);
     await this.writeState(state);
     return created;
   }
 
   async createJob(input: {
-    deviceId: string;
+    userId: string;
     uploadId: string;
     promptVersion: string;
+    prompt?: string;
+    shape?: ShapeType;
     provider: AiProviderName;
     model: string;
     styles: StyleType[];
@@ -123,11 +180,13 @@ export class FileRepository implements AppRepository {
 
     const job: GenerationJob = {
       id: jobId,
-      deviceId: input.deviceId,
+      userId: input.userId,
       uploadId: input.uploadId,
       createdAt: timestamp,
       updatedAt: timestamp,
       promptVersion: input.promptVersion,
+      prompt: input.prompt ?? null,
+      shape: input.shape ?? null,
       provider: input.provider,
       model: input.model,
       status: 'queued',
@@ -141,7 +200,6 @@ export class FileRepository implements AppRepository {
 
     state.jobs.push(job);
     state.styleTasks.push(...styleTasks);
-    if (!state.devices.includes(input.deviceId)) state.devices.push(input.deviceId);
     await this.writeState(state);
     return job;
   }
@@ -153,14 +211,14 @@ export class FileRepository implements AppRepository {
     return this.composeJob(state, jobId);
   }
 
-  async getJobForDevice(jobId: string, deviceId: string) {
+  async getJobForUser(jobId: string, userId: string) {
     const job = await this.getJob(jobId);
-    return job?.deviceId === deviceId ? job : null;
+    return job?.userId === userId ? job : null;
   }
 
-  async listJobsByDevice(deviceId: string) {
+  async listJobsByUser(userId: string) {
     const state = await this.readState();
-    const jobs = state.jobs.filter((job) => job.deviceId === deviceId);
+    const jobs = state.jobs.filter((job) => job.userId === userId);
     return Promise.all(jobs.map((job) => this.composeJob(state, job.id)));
   }
 
@@ -199,7 +257,6 @@ export class FileRepository implements AppRepository {
     const assetId = uuid();
     state.assets.push({ id: assetId, createdAt: now(), ...input });
     const task = state.styleTasks.find((item) => item.id === input.styleTaskId);
-
     if (task) {
       task.assetId = assetId;
       task.status = 'success';
@@ -207,19 +264,17 @@ export class FileRepository implements AppRepository {
       task.completedAt = now();
       task.updatedAt = now();
     }
-
     const job = state.jobs.find((item) => item.id === task?.jobId);
     const tasks = state.styleTasks.filter((item) => item.jobId === task?.jobId);
     if (job) {
       job.status = deriveJobStatus(tasks);
       job.updatedAt = now();
     }
-
     await this.writeState(state);
   }
 
   async resetStyleTask(jobId: string, style: StyleType) {
-    return this.updateStyleTask({
+    await this.updateStyleTask({
       jobId,
       style,
       status: 'queued',
@@ -235,9 +290,9 @@ export class FileRepository implements AppRepository {
     return state.uploads.find((upload) => upload.id === uploadId) ?? null;
   }
 
-  async getUploadForDevice(uploadId: string, deviceId: string) {
+  async getUploadForUser(uploadId: string, userId: string) {
     const upload = await this.getUpload(uploadId);
-    return upload?.deviceId === deviceId ? upload : null;
+    return upload?.userId === userId ? upload : null;
   }
 
   async healthCheck() {
@@ -274,16 +329,54 @@ export class PrismaRepository implements AppRepository {
 
   constructor(private readonly prisma: PrismaClient) {}
 
+  async upsertUser(input: AuthUser) {
+    const user = await this.prisma.user.upsert({
+      where: { clerkUserId: input.clerkUserId },
+      update: {
+        email: input.email ?? undefined,
+        firstName: input.firstName ?? undefined,
+        lastName: input.lastName ?? undefined,
+        imageUrl: input.imageUrl ?? undefined,
+      },
+      create: {
+        id: uuid(),
+        clerkUserId: input.clerkUserId,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        imageUrl: input.imageUrl,
+      },
+    });
+
+    return {
+      id: user.id,
+      clerkUserId: user.clerkUserId,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      imageUrl: user.imageUrl,
+    };
+  }
+
+  async getUserByClerkId(clerkUserId: string) {
+    const user = await this.prisma.user.findUnique({ where: { clerkUserId } });
+    return user
+      ? {
+          id: user.id,
+          clerkUserId: user.clerkUserId,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          imageUrl: user.imageUrl,
+        }
+      : null;
+  }
+
   async saveUpload(input: Omit<UploadRecord, 'createdAt'>) {
     const upload = await this.prisma.upload.create({
       data: {
         id: input.id,
-        device: {
-          connectOrCreate: {
-            where: { id: input.deviceId },
-            create: { id: input.deviceId },
-          },
-        },
+        user: { connect: { id: input.userId } },
         storageKey: input.storageKey,
         url: input.url,
         mimeType: input.mimeType,
@@ -293,7 +386,7 @@ export class PrismaRepository implements AppRepository {
 
     return {
       id: upload.id,
-      deviceId: upload.deviceId,
+      userId: upload.userId,
       storageKey: upload.storageKey,
       url: upload.url,
       mimeType: upload.mimeType,
@@ -303,9 +396,11 @@ export class PrismaRepository implements AppRepository {
   }
 
   async createJob(input: {
-    deviceId: string;
+    userId: string;
     uploadId: string;
     promptVersion: string;
+    prompt?: string;
+    shape?: ShapeType;
     provider: AiProviderName;
     model: string;
     styles: StyleType[];
@@ -314,18 +409,13 @@ export class PrismaRepository implements AppRepository {
       data: {
         id: uuid(),
         promptVersion: input.promptVersion,
+        prompt: input.prompt,
+        shape: input.shape,
         provider: mapProvider(input.provider),
         model: input.model,
         status: 'queued',
-        device: {
-          connectOrCreate: {
-            where: { id: input.deviceId },
-            create: { id: input.deviceId },
-          },
-        },
-        upload: {
-          connect: { id: input.uploadId },
-        },
+        user: { connect: { id: input.userId } },
+        upload: { connect: { id: input.uploadId } },
         styleTasks: {
           create: input.styles.map((style) => ({
             id: uuid(),
@@ -347,17 +437,17 @@ export class PrismaRepository implements AppRepository {
     return job ? this.mapJob(job) : null;
   }
 
-  async getJobForDevice(jobId: string, deviceId: string) {
+  async getJobForUser(jobId: string, userId: string) {
     const job = await this.prisma.generationJob.findFirst({
-      where: { id: jobId, deviceId },
+      where: { id: jobId, userId },
       include: { styleTasks: { include: { asset: true } } },
     });
     return job ? this.mapJob(job) : null;
   }
 
-  async listJobsByDevice(deviceId: string) {
+  async listJobsByUser(userId: string) {
     const jobs = await this.prisma.generationJob.findMany({
-      where: { deviceId },
+      where: { userId },
       orderBy: { createdAt: 'desc' },
       include: { styleTasks: { include: { asset: true } } },
     });
@@ -442,7 +532,7 @@ export class PrismaRepository implements AppRepository {
     return upload
       ? {
           id: upload.id,
-          deviceId: upload.deviceId,
+          userId: upload.userId,
           storageKey: upload.storageKey,
           url: upload.url,
           mimeType: upload.mimeType,
@@ -452,12 +542,12 @@ export class PrismaRepository implements AppRepository {
       : null;
   }
 
-  async getUploadForDevice(uploadId: string, deviceId: string) {
-    const upload = await this.prisma.upload.findFirst({ where: { id: uploadId, deviceId } });
+  async getUploadForUser(uploadId: string, userId: string) {
+    const upload = await this.prisma.upload.findFirst({ where: { id: uploadId, userId } });
     return upload
       ? {
           id: upload.id,
-          deviceId: upload.deviceId,
+          userId: upload.userId,
           storageKey: upload.storageKey,
           url: upload.url,
           mimeType: upload.mimeType,
@@ -500,11 +590,13 @@ export class PrismaRepository implements AppRepository {
 
   private mapJob(job: {
     id: string;
-    deviceId: string;
+    userId: string;
     uploadId: string;
     createdAt: Date;
     updatedAt: Date;
     promptVersion: string;
+    prompt: string | null;
+    shape: string | null;
     provider: PrismaAiProvider;
     model: string;
     status: string;
@@ -525,11 +617,13 @@ export class PrismaRepository implements AppRepository {
   }): GenerationJob {
     return {
       id: job.id,
-      deviceId: job.deviceId,
+      userId: job.userId,
       uploadId: job.uploadId,
       createdAt: job.createdAt.toISOString(),
       updatedAt: job.updatedAt.toISOString(),
       promptVersion: job.promptVersion,
+      prompt: job.prompt,
+      shape: (job.shape as ShapeType | null) ?? null,
       provider: job.provider,
       model: job.model,
       status: job.status as StyleTaskStatus,
@@ -550,10 +644,7 @@ export class PrismaRepository implements AppRepository {
 
 export function createRepository(mode: 'file' | 'prisma', databaseUrl?: string) {
   if (mode === 'prisma' && databaseUrl) {
-    const prisma = new PrismaClient({
-      datasourceUrl: databaseUrl,
-    });
-    return new PrismaRepository(prisma);
+    return new PrismaRepository(new PrismaClient({ datasourceUrl: databaseUrl }));
   }
 
   return new FileRepository(join(process.cwd(), 'data', 'repository.json'));

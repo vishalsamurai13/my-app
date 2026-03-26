@@ -1,10 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { StyleType } from '@ai-clipart/shared';
-import { STYLE_TYPES } from '@ai-clipart/shared';
+import { STYLE_TYPES, type ShapeType, type StyleType } from '@ai-clipart/shared';
 
-type SelectedImage = {
+export type SelectedImage = {
   uri: string;
   mimeType: string;
   fileName: string;
@@ -12,47 +11,69 @@ type SelectedImage = {
 };
 
 type AppState = {
-  deviceId: string | null;
   selectedImage: SelectedImage | null;
+  prompt: string;
   selectedStyles: StyleType[];
-  setDeviceId: (deviceId: string) => void;
+  selectedShape: ShapeType;
+  activeResultStyle: StyleType | null;
   setSelectedImage: (image: SelectedImage | null) => void;
-  toggleStyle: (style: StyleType) => void;
+  setPrompt: (prompt: string) => void;
+  toggleStyle: (style: StyleType) => { ok: boolean; reason?: string };
+  setSelectedShape: (shape: ShapeType) => void;
+  setActiveResultStyle: (style: StyleType | null) => void;
   resetDraft: () => void;
 };
 
+const DEFAULT_STYLES: StyleType[] = ['cartoon'];
+
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
-      deviceId: null,
+    (set, get) => ({
       selectedImage: null,
-      selectedStyles: [...STYLE_TYPES],
-      setDeviceId: (deviceId) => set({ deviceId }),
+      prompt: '',
+      selectedStyles: DEFAULT_STYLES,
+      selectedShape: 'square',
+      activeResultStyle: null,
       setSelectedImage: (selectedImage) => set({ selectedImage }),
-      toggleStyle: (style) =>
-        set((state) => {
-          const exists = state.selectedStyles.includes(style);
-          const selectedStyles =
-            exists && state.selectedStyles.length > 1
-              ? state.selectedStyles.filter((item) => item !== style)
-              : exists
-                ? state.selectedStyles
-                : [...state.selectedStyles, style];
+      setPrompt: (prompt) => set({ prompt }),
+      toggleStyle: (style) => {
+        const { selectedStyles } = get();
+        const exists = selectedStyles.includes(style);
 
-          return { selectedStyles };
-        }),
+        if (exists) {
+          const next = selectedStyles.filter((item) => item !== style);
+          if (next.length === 0) {
+            return { ok: false, reason: 'Select at least one style.' };
+          }
+          set({ selectedStyles: next });
+          return { ok: true };
+        }
+
+        if (selectedStyles.length >= 4) {
+          return { ok: false, reason: 'You can select a maximum of 4 styles.' };
+        }
+
+        set({ selectedStyles: [...selectedStyles, style] });
+        return { ok: true };
+      },
+      setSelectedShape: (selectedShape) => set({ selectedShape }),
+      setActiveResultStyle: (activeResultStyle) => set({ activeResultStyle }),
       resetDraft: () =>
         set({
           selectedImage: null,
-          selectedStyles: [...STYLE_TYPES],
+          prompt: '',
+          selectedStyles: DEFAULT_STYLES,
+          selectedShape: 'square',
+          activeResultStyle: null,
         }),
     }),
     {
       name: 'ai-clipart-app-store',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
-        deviceId: state.deviceId,
-        selectedStyles: state.selectedStyles,
+        prompt: state.prompt,
+        selectedStyles: state.selectedStyles.filter((style) => STYLE_TYPES.includes(style)),
+        selectedShape: state.selectedShape,
       }),
     },
   ),

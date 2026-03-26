@@ -15,6 +15,12 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "prisma:generate": "npm --workspace @ai-clipart/api run prisma:generate"
+    "prisma:generate": "npm --workspace @ai-clipart/api run prisma:generate",
+    "prisma:push": "prisma db push --schema apps/api/prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema apps/api/prisma/schema.prisma"
+  },
+  "dependencies": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   }
 }

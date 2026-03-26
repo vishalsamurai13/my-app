@@ -1,34 +1,44 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { createJob, uploadImage } from '@/lib/api/client';
+import { useClerkAuthState } from '@/lib/auth/clerk';
 import { useAppStore } from '@/lib/store/app-store';
 
 export function useCreateJob() {
   const router = useRouter();
-  const deviceId = useAppStore((state) => state.deviceId);
+  const queryClient = useQueryClient();
+  const { getRequiredToken } = useClerkAuthState();
   const selectedImage = useAppStore((state) => state.selectedImage);
   const selectedStyles = useAppStore((state) => state.selectedStyles);
+  const prompt = useAppStore((state) => state.prompt);
+  const selectedShape = useAppStore((state) => state.selectedShape);
+  const setActiveResultStyle = useAppStore((state) => state.setActiveResultStyle);
 
   return useMutation({
     mutationFn: async () => {
-      if (!deviceId || !selectedImage) {
-        throw new Error('Image or device identity is missing.');
+      if (!selectedImage) {
+        throw new Error('Image is required.');
       }
+      const token = await getRequiredToken();
 
       const upload = await uploadImage({
         uri: selectedImage.uri,
         fileName: selectedImage.fileName,
         mimeType: selectedImage.mimeType,
-        deviceId,
+        token,
       });
 
       return createJob({
         uploadId: upload.uploadId,
         styles: selectedStyles,
-        deviceId,
+        token,
+        prompt,
+        shape: selectedShape,
       });
     },
     onSuccess: ({ jobId }) => {
+      setActiveResultStyle(null);
+      void queryClient.invalidateQueries({ queryKey: ['history'] });
       router.replace(`/results/${jobId}`);
     },
   });

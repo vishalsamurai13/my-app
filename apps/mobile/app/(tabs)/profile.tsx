@@ -123,7 +123,7 @@ export default function ProfileTab() {
   }
 
   return (
-    <Screen scroll={false} backgroundColor="#121212" contentClassName="gap-6 pt-6 pb-[120px]">
+    <Screen scroll={false} backgroundColor="#121212" contentClassName="gap-6 pt-6">
       {!isSignedIn ? (
         <>
           <Text className="text-[34px] font-black text-primary">Profile</Text>
@@ -210,32 +210,34 @@ export default function ProfileTab() {
             </Text>
           ) : null}
 
-          <FlatList
-            data={assets}
-            keyExtractor={(item) => item.id}
-            numColumns={2}
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 120, rowGap: 12 }}
-            columnWrapperStyle={{ justifyContent: 'space-between' }}
-            renderItem={({ item }) => {
-              const uri = resolveAssetUrl(item.url);
-              return uri ? (
-                <Image source={{ uri }} style={{ width: '48%', aspectRatio: 0.76, borderRadius: 18, backgroundColor: '#1a1423' }} />
-              ) : (
-                <View style={{ width: '48%', aspectRatio: 0.76, borderRadius: 18, backgroundColor: '#1a1423' }} />
-              );
-            }}
-            ListEmptyComponent={
-              historyQuery.isLoading ? null : (
-                <View className="mt-3 items-center gap-2 rounded-[20px] border border-border-card bg-card px-4 py-6">
-                  <Text className="text-center text-lg font-bold text-primary">No generations yet</Text>
-                  <Text className="text-center text-[15px] leading-[22px] text-muted">
-                    Your generated images will appear here once you create them.
-                  </Text>
-                </View>
-              )
-            }
-          />
+          <View className="flex-1">
+            <FlatList
+              data={assets}
+              keyExtractor={(item) => item.id}
+              numColumns={2}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 96, rowGap: 12, flexGrow: assets.length === 0 ? 1 : 0 }}
+              columnWrapperStyle={assets.length > 0 ? { justifyContent: 'space-between' } : undefined}
+              renderItem={({ item }) => {
+                const uri = resolveAssetUrl(item.url);
+                return uri ? (
+                  <Image source={{ uri }} style={{ width: '48%', aspectRatio: 0.76, borderRadius: 18, backgroundColor: '#1a1423' }} />
+                ) : (
+                  <View style={{ width: '48%', aspectRatio: 0.76, borderRadius: 18, backgroundColor: '#1a1423' }} />
+                );
+              }}
+              ListEmptyComponent={
+                historyQuery.isLoading ? null : (
+                  <View className="mt-3 items-center gap-2 rounded-[20px] border border-border-card bg-card px-4 py-6">
+                    <Text className="text-center text-lg font-bold text-primary">No generations yet</Text>
+                    <Text className="text-center text-[15px] leading-[22px] text-muted">
+                      Your generated images will appear here once you create them.
+                    </Text>
+                  </View>
+                )
+              }
+            />
+          </View>
         </>
       ) : null}
     </Screen>

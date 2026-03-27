@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
+import { ShimmerBlock } from '@/components/feedback/shimmer-block';
 import { useToast } from '@/components/feedback/toast-provider';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -44,6 +45,12 @@ export default function ResultScreen() {
   }, [activeResultStyle, firstSuccessfulStyle, setActiveResultStyle]);
 
   useEffect(() => {
+    if (selected?.style && activeResultStyle !== selected.style) {
+      setActiveResultStyle(selected.style);
+    }
+  }, [activeResultStyle, selected?.style, setActiveResultStyle]);
+
+  useEffect(() => {
     if (data && !isInFlight) {
       void queryClient.invalidateQueries({ queryKey: ['history'] });
     }
@@ -64,9 +71,17 @@ export default function ResultScreen() {
     }
   }, [data?.styles, showToast]);
 
-  const successfulStyles = data?.styles.filter((style) => style.url) ?? [];
-  const previewCount = successfulStyles.length || (data?.styles.length ?? 0);
+  const previewCount = data?.styles.length ?? 0;
   const previewWidth = previewCount <= 1 ? '100%' : previewCount === 2 ? '48%' : previewCount === 3 ? '31.5%' : '23.5%';
+
+  function handleBack() {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/(tabs)' as never);
+  }
 
   async function handleDownload() {
     if (!selectedUrl || !selected) return;
@@ -111,7 +126,7 @@ export default function ResultScreen() {
       <View className="relative flex-row items-center justify-center">
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.back()}
+          onPress={handleBack}
           className="absolute left-0 h-11 w-11 items-center justify-center rounded-full bg-border-card">
           <ChevronLeft color="#ffffff" size={22} />
         </Pressable>
@@ -130,14 +145,16 @@ export default function ResultScreen() {
       {selectedUrl ? (
         <Image source={{ uri: selectedUrl }} style={{ width: '100%', aspectRatio: 1, borderRadius: 28 }} />
       ) : (
-        <View className="w-full aspect-square items-center justify-center gap-2.5 rounded-[28px] border border-border-card bg-card px-7">
-          <Text className="text-[20px] font-extrabold text-primary">{selected?.status === 'error' ? 'Preview unavailable' : 'Generating preview'}</Text>
-          <Text className="text-center leading-[22px] text-muted">
-            {selected?.status === 'error'
-              ? 'Retry this style from the cards below.'
-              : 'The first completed style will automatically appear here.'}
-          </Text>
-        </View>
+        <ShimmerBlock style={{ width: '100%', aspectRatio: 1, borderRadius: 28 }}>
+          <View className="flex-1 items-center justify-center gap-2.5 px-7">
+            <Text className="text-[20px] font-extrabold text-primary">{selected?.status === 'error' ? 'Preview unavailable' : 'Generating preview'}</Text>
+            <Text className="text-center leading-[22px] text-muted">
+              {selected?.status === 'error'
+                ? 'Retry this style from the cards below.'
+                : 'The first completed style will automatically appear here.'}
+            </Text>
+          </View>
+        </ShimmerBlock>
       )}
 
       <View className="flex-row flex-wrap gap-3">
@@ -153,12 +170,16 @@ export default function ResultScreen() {
               onPress={() => setActiveResultStyle(style.style)}>
               {uri ? (
                 <Image source={{ uri }} style={{ width: '100%', aspectRatio: 1, borderRadius: 12, marginBottom: 8, backgroundColor: '#2b2340' }} />
-              ) : (
-                <View className="mb-2 aspect-square w-full items-center justify-center rounded-xl bg-thumb-bg">
-                  <Text className="text-[11px] font-bold text-[#b9b2c7]">
-                    {style.status === 'error' ? 'Failed' : style.status === 'processing' ? 'Processing' : 'Queued'}
-                  </Text>
+              ) : style.status === 'error' ? (
+                <View className="mb-2 aspect-square w-full items-center justify-center rounded-xl bg-thumb-bg px-3">
+                  <Text className="text-[11px] font-bold text-[#b9b2c7]">Failed</Text>
                 </View>
+              ) : (
+                <ShimmerBlock style={{ width: '100%', aspectRatio: 1, borderRadius: 12, marginBottom: 8 }}>
+                  <View className="flex-1 items-center justify-center px-3">
+                    <Text className="text-center text-[11px] font-bold text-[#d9d1ea]">Generating...</Text>
+                  </View>
+                </ShimmerBlock>
               )}
               <Text className="text-center text-lg font-bold text-primary">{STYLE_LABELS[style.style]}</Text>
               <Text className="mt-1 text-center text-xs text-muted">{style.status === 'success' ? 'Ready' : style.status}</Text>

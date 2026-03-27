@@ -3,9 +3,28 @@ import * as MediaLibrary from 'expo-media-library';
 import { Share } from 'react-native';
 import * as Sharing from 'expo-sharing';
 
+function resolveWritableDirectory() {
+  const directory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+
+  if (!directory) {
+    throw new Error('No writable directory is available for downloads on this device.');
+  }
+
+  return directory;
+}
+
+function normalizeFileName(fileName: string) {
+  return /\.[a-z0-9]+$/i.test(fileName) ? fileName : `${fileName}.png`;
+}
+
 export async function saveRemoteFile(url: string, fileName: string) {
-  const destination = `${FileSystem.cacheDirectory}${fileName}`;
+  const destination = `${resolveWritableDirectory()}${normalizeFileName(fileName)}`;
   const download = await FileSystem.downloadAsync(url, destination);
+
+  if (download.status >= 400) {
+    throw new Error(`Image download failed with status ${download.status}.`);
+  }
+
   return download.uri;
 }
 
@@ -18,7 +37,13 @@ export async function saveRemoteFileToGallery(url: string, fileName: string) {
 
   const uri = await saveRemoteFile(url, fileName);
   const asset = await MediaLibrary.createAssetAsync(uri);
-  await MediaLibrary.createAlbumAsync('AI Clipart Generator', asset, false).catch(() => null);
+
+  try {
+    await MediaLibrary.createAlbumAsync('AI Clipart Generator', asset, false);
+  } catch {
+    await MediaLibrary.saveToLibraryAsync(uri);
+  }
+
   return asset;
 }
 

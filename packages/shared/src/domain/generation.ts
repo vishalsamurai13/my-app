@@ -1,4 +1,4 @@
-import { STYLE_TYPES } from '../constants/styles';
+import { STYLE_TYPES } from '../constants/styles.js';
 
 export type StyleType = (typeof STYLE_TYPES)[number];
 export const SHAPE_TYPES = ['square', 'landscape', 'portrait', 'custom'] as const;

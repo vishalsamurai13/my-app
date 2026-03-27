@@ -1,13 +1,13 @@
-export { STYLE_LABELS, STYLE_TYPES } from './constants/styles';
+export { STYLE_LABELS, STYLE_TYPES } from './constants/styles.js';
 
-export { SHAPE_TYPES, STYLE_TASK_STATUSES } from './domain/generation';
+export { SHAPE_TYPES, STYLE_TASK_STATUSES } from './domain/generation.js';
 export type {
   GeneratedAsset,
   GenerationJob,
   ShapeType,
   StyleTaskStatus,
   StyleType,
-} from './domain/generation';
+} from './domain/generation.js';
 
 export {
   assetSchema,
@@ -22,4 +22,4 @@ export {
   styleTypeSchema,
   updateMeBodySchema,
   uploadResponseSchema,
-} from './validators/contracts';
+} from './validators/contracts.js';

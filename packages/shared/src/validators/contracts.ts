@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { SHAPE_TYPES, STYLE_TASK_STATUSES } from '../domain/generation';
-import { STYLE_TYPES } from '../constants/styles';
+import { SHAPE_TYPES, STYLE_TASK_STATUSES } from '../domain/generation.js';
+import { STYLE_TYPES } from '../constants/styles.js';
 
 export const styleTypeSchema = z.enum(STYLE_TYPES);
 export const styleTaskStatusSchema = z.enum(STYLE_TASK_STATUSES);

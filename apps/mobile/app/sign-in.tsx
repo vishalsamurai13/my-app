@@ -26,6 +26,15 @@ export default function SignInScreen() {
     }
   }
 
+  function handleMaybeLater() {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/welcome' as never);
+  }
+
   return (
     <Screen scroll={false} backgroundColor="#101014" contentClassName="flex-1 justify-end">
       <View className="mb-6 gap-4 rounded-xl4 bg-sheet p-6">
@@ -34,7 +43,7 @@ export default function SignInScreen() {
           Use Google to unlock generation history, downloads, and profile sync.
         </Text>
         <Button onPress={handleGoogle}>Continue with Google</Button>
-        <Pressable onPress={() => router.back()} className="items-center pt-1">
+        <Pressable onPress={handleMaybeLater} className="items-center pt-1">
           <Text className="font-bold text-brand-deep">Maybe later</Text>
         </Pressable>
       </View>

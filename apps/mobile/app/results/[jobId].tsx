@@ -157,7 +157,7 @@ export default function ResultScreen() {
         </ShimmerBlock>
       )}
 
-      <View className="flex-row flex-wrap gap-3">
+      <View className="flex-row items-start justify-between">
         {data?.styles.map((style) => {
           const uri = resolveAssetUrl(style.url);
           const active = selected?.id === style.id;

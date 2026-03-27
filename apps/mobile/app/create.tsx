@@ -97,12 +97,21 @@ export default function CreateScreen() {
     createJobMutation.mutate();
   }
 
+  function handleBack() {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/(tabs)" as never);
+  }
+
   return (
     <Screen backgroundColor="#121212" contentClassName="gap-[18px] pt-6 pb-12">
       <View className="relative flex-row items-center justify-center">
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.back()}
+          onPress={handleBack}
           className="absolute left-0 h-11 w-11 items-center justify-center rounded-full bg-border-card"
         >
           <ChevronLeft color="#ffffff" size={22} />

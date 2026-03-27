@@ -1,31 +1,41 @@
 # AI Clipart Generator
 
-AI Clipart Generator is an Android-first mobile application for turning an uploaded portrait into multiple stylized AI variations. The product is built as a monorepo with an Expo React Native app, a Fastify backend, Prisma/PostgreSQL persistence, Clerk authentication, Replicate image generation, and Cloudinary asset hosting.
+AI Clipart Generator is an Android-first mobile app that takes a user-uploaded portrait and generates multiple stylized AI variations. The repo is a monorepo with an Expo mobile app, a Fastify API, Prisma/PostgreSQL persistence, Clerk authentication, Replicate generation, and Cloudinary asset hosting.
 
-## What The App Does
+## Product Flow
 
-The user flow is:
+The current user journey is:
 
-`Welcome -> Home -> Prompt/Create -> Results -> Profile`
+`Welcome -> Home -> Create -> Results -> Profile`
 
-Core behaviors:
+Core product behaviors:
 
-- optional entry through the welcome screen
+- welcome screen with guest and signed-in states
 - Google sign-in with Clerk
-- upload a portrait from camera or gallery
-- select up to 4 styles per generation batch
-- create AI outputs for styles such as Cartoon, Anime, Illustration, Pixel, Sketch, Fantasy, Comic, and Watercolor
-- poll generation progress in the results screen
-- retry failed styles
-- save generated images to the device gallery
-- share generated images through public Cloudinary-backed URLs
-- persist generation history and user profile data in PostgreSQL
+- portrait upload from camera or gallery
+- style selection with up to 4 styles per generation
+- image generation through Replicate
+- per-style polling and retry in the results screen
+- public sharing through Cloudinary-backed URLs
+- device gallery save on Android
+- generation history and editable profile metadata persisted in PostgreSQL
+
+Supported styles:
+
+- Cartoon
+- Anime
+- Illustration
+- Pixel
+- Sketch
+- Fantasy
+- Comic
+- Watercolor
 
 ## Monorepo Structure
 
-- [apps/mobile](/Users/vishalsharma/Desktop/my-app/apps/mobile): Expo Router mobile app
-- [apps/api](/Users/vishalsharma/Desktop/my-app/apps/api): Fastify API, generation orchestration, Prisma repository, auth verification
-- [packages/shared](/Users/vishalsharma/Desktop/my-app/packages/shared): shared enums, schemas, and contract types
+- [apps/mobile](/Users/vishalsharma/Desktop/my-app/apps/mobile): Expo Router app
+- [apps/api](/Users/vishalsharma/Desktop/my-app/apps/api): Fastify backend, auth, orchestration, Prisma repository, providers
+- [packages/shared](/Users/vishalsharma/Desktop/my-app/packages/shared): shared schemas, enums, contracts, validators
 
 ## Tech Stack
 
@@ -38,7 +48,10 @@ Core behaviors:
 - TanStack Query
 - Zustand
 - NativeWind
-- Expo Image, Image Picker, Media Library, Sharing
+- Expo Image
+- Expo Image Picker
+- Expo Media Library
+- Expo Sharing
 
 ### Backend
 
@@ -50,26 +63,26 @@ Core behaviors:
 - Cloudinary
 - Zod
 
-## Product Architecture
+## Architecture
 
-### Authentication
+### Authentication Flow
 
-- mobile signs in with Clerk using Google
-- the mobile app sends a Clerk bearer token to protected backend routes
-- the backend verifies the token and resolves the Clerk user
-- on authenticated requests, the backend upserts the local `User` record in Postgres
+1. The mobile app signs the user in through Clerk Google OAuth.
+2. The mobile app sends the Clerk bearer token to protected backend routes.
+3. The API verifies the token, resolves the Clerk user, and upserts the local `User` record.
+4. App-owned profile fields such as `displayName` and `dateOfBirth` are stored in Postgres and exposed through `/me`.
 
 ### Generation Flow
 
-1. The user selects an image and styles in the mobile app.
-2. The mobile app uploads the original image with `POST /uploads`.
-3. The mobile app creates a generation job with `POST /jobs`.
-4. The backend creates `StyleTask` records and runs the orchestrator asynchronously.
+1. The user uploads an image in the mobile app.
+2. The mobile app sends the original image to `POST /uploads`.
+3. The mobile app creates a job with `POST /jobs`.
+4. The backend creates a `GenerationJob` with child `StyleTask` records.
 5. The results screen polls `GET /jobs/:jobId`.
-6. Completed assets are stored and linked back to the job.
-7. The profile screen reads history through `GET /history`.
+6. Successful outputs are stored as `Asset` records and linked back to their style tasks.
+7. The profile screen reads the user gallery through `GET /history`.
 
-### Persistence
+### Storage And Persistence
 
 Metadata lives in PostgreSQL:
 
@@ -79,27 +92,48 @@ Metadata lives in PostgreSQL:
 - `StyleTask`
 - `Asset`
 
-Binary files live in storage:
+Binary assets live in storage:
 
-- local disk in development if `STORAGE_MODE=local`
-- Cloudinary in hosted/public mode if `STORAGE_MODE=cloudinary`
+- `STORAGE_MODE=local` for local file storage in development
+- `STORAGE_MODE=cloudinary` for hosted public asset URLs
+
+### Sharing And Downloads
+
+- public sharing uses `POST /share/:assetId`
+- the backend verifies that the selected asset belongs to the signed-in user
+- the API returns a public URL for the generated image
+- the mobile app uses the native share sheet with that URL
+- downloads save the selected result to the device gallery through Expo Media Library
 
 ## Mobile Screens
 
 - [apps/mobile/app/welcome.tsx](/Users/vishalsharma/Desktop/my-app/apps/mobile/app/welcome.tsx)
-  - branded welcome/onboarding screen
+  - guest CTA state
+  - signed-in greeting state
+  - auth-aware auto-transition into the tab shell
 - [apps/mobile/app/sign-in.tsx](/Users/vishalsharma/Desktop/my-app/apps/mobile/app/sign-in.tsx)
-  - Clerk sign-in entry
+  - Clerk Google sign-in entry
 - [apps/mobile/app/(tabs)/_layout.tsx](/Users/vishalsharma/Desktop/my-app/apps/mobile/app/(tabs)/_layout.tsx)
   - custom bottom tab shell
 - [apps/mobile/app/(tabs)/index.tsx](/Users/vishalsharma/Desktop/my-app/apps/mobile/app/(tabs)/index.tsx)
-  - home screen with generator hero card and style preview cards
+  - home screen
+  - hero card
+  - trending style previews
 - [apps/mobile/app/create.tsx](/Users/vishalsharma/Desktop/my-app/apps/mobile/app/create.tsx)
-  - prompt, image upload, style selection, shape selection
+  - prompt input
+  - image preview/upload
+  - style selection
+  - shape selection
+  - generation entry point
 - [apps/mobile/app/results/[jobId].tsx](/Users/vishalsharma/Desktop/my-app/apps/mobile/app/results/[jobId].tsx)
-  - result preview, retry, share, download
+  - large active preview
+  - per-style preview strip
+  - shimmer loading state
+  - retry/share/download actions
 - [apps/mobile/app/(tabs)/profile.tsx](/Users/vishalsharma/Desktop/my-app/apps/mobile/app/(tabs)/profile.tsx)
-  - profile info, editable app metadata, saved generation gallery
+  - profile header
+  - editable profile settings
+  - generation gallery
 
 ## Backend Routes
 
@@ -118,39 +152,39 @@ Binary files live in storage:
 - `PATCH /me`
 - `POST /share/:assetId`
 
-### Route Notes
+### Route Summary
 
 - `POST /uploads`
   - stores the original uploaded image
   - creates the `Upload` row
 - `POST /jobs`
   - accepts `uploadId`, `styles`, optional `prompt`, optional `shape`
-  - creates the job and enqueues generation
+  - creates the generation job
 - `GET /jobs/:jobId`
-  - returns per-style independent status and asset URLs
+  - returns per-style status, asset metadata, and URLs
 - `POST /jobs/:jobId/styles/:style/retry`
-  - retries only failed styles
+  - retries only a failed style
 - `GET /history`
-  - returns user-owned jobs for the profile gallery
+  - returns user-owned jobs for the profile/gallery view
 - `GET /me`
-  - returns merged Clerk-backed identity plus app-owned profile metadata
+  - returns Clerk-backed identity fields plus app-owned profile fields
 - `PATCH /me`
-  - persists editable fields such as `displayName` and `dateOfBirth`
+  - saves editable profile fields such as `displayName` and `dateOfBirth`
 - `POST /share/:assetId`
-  - validates ownership and returns a public share URL for the selected asset
+  - validates ownership and returns a shareable public URL
 
-## Shared Contract Notes
+## Shared Contracts
 
-The shared contract in [packages/shared](/Users/vishalsharma/Desktop/my-app/packages/shared) is the source of truth for:
+[packages/shared](/Users/vishalsharma/Desktop/my-app/packages/shared) is the source of truth for:
 
 - style enums
 - shape enums
-- job response schema
-- profile response schema
-- profile update schema
+- generation job response schema
+- history response schema
+- profile response/update schema
 - share response schema
 
-This keeps the mobile app and backend in sync.
+The mobile app and API should stay aligned through these shared types rather than ad hoc request shapes.
 
 ## Environment Setup
 
@@ -163,6 +197,7 @@ Create [/.env](/Users/vishalsharma/Desktop/my-app/.env):
 ```env
 PORT=4000
 API_BASE_URL=http://10.0.2.2:4000
+
 CLERK_SECRET_KEY=sk_test_...
 
 AI_PROVIDER=replicate
@@ -195,42 +230,13 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 
 ### Env Notes
 
-- On the Android emulator, `10.0.2.2` points back to your Mac.
-- On a real device, replace both API URLs with your machine’s LAN IP.
-- Never commit real secrets.
-- If secrets were exposed accidentally, rotate them.
+- `10.0.2.2` is the Android emulator bridge back to your machine.
+- On a physical device, replace both API base URLs with your LAN IP.
+- Keep backend secrets only in the root `.env`.
+- Do not duplicate `DATABASE_URL` across root and `apps/api/.env` unless you intentionally want Prisma commands to load from that location.
+- Rotate any secret that was ever exposed.
 
-## Local Database Setup
-
-This project expects PostgreSQL.
-
-### Install And Start PostgreSQL On macOS
-
-```bash
-brew install postgresql@16
-brew services start postgresql@16
-createdb ai_clipart
-```
-
-### Generate Prisma Client
-
-```bash
-npm run prisma:generate
-```
-
-### Push The Schema
-
-```bash
-npm run prisma:push
-```
-
-### Open Prisma Studio
-
-```bash
-npm run prisma:studio
-```
-
-## Running The App
+## Local Setup
 
 ### 1. Install dependencies
 
@@ -238,30 +244,58 @@ npm run prisma:studio
 npm install
 ```
 
-### 2. Start the backend
+### 2. Start PostgreSQL on macOS
+
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+createdb ai_clipart
+```
+
+### 3. Generate Prisma client
+
+```bash
+npm run prisma:generate
+```
+
+### 4. Push the schema
+
+```bash
+npm run prisma:push
+```
+
+### 5. Open Prisma Studio
+
+```bash
+npm run prisma:studio
+```
+
+### 6. Start the backend
 
 ```bash
 npm run dev:api
 ```
 
-### 3. Start the mobile app
+### 7. Start the mobile app
+
+From the repo root:
+
+```bash
+npm run android
+```
+
+Or directly from the mobile app:
 
 ```bash
 cd /Users/vishalsharma/Desktop/my-app/apps/mobile
 npx expo start --android --host localhost --clear
 ```
 
-Or from root:
-
-```bash
-npm run android
-```
-
 ## Provider Modes
 
 ### Mock Mode
 
-Use this when you want to develop UI and persistence without spending API credits:
+Use this when you want to work on UI and persistence without spending AI credits:
 
 ```env
 AI_PROVIDER=mock
@@ -269,7 +303,7 @@ STORAGE_MODE=local
 REPOSITORY_MODE=prisma
 ```
 
-### Real AI Mode
+### Replicate Mode
 
 Use Replicate for real image generation:
 
@@ -282,11 +316,11 @@ REPLICATE_IMAGE_FIELD=input_image
 REPLICATE_PROMPT_FIELD=prompt
 ```
 
-`flux-kontext-pro` fits the current image-first product because it accepts both a prompt and an input image.
+`black-forest-labs/flux-kontext-pro` fits the current image-first product because it accepts both a prompt and an input image.
 
 ### Cloudinary Mode
 
-Use public asset hosting:
+Use Cloudinary for public hosted asset URLs:
 
 ```env
 STORAGE_MODE=cloudinary
@@ -296,17 +330,17 @@ CLOUDINARY_API_SECRET=...
 CLOUDINARY_FOLDER=ai-clipart-generator
 ```
 
-Cloudinary mode is recommended for:
+Cloudinary mode is required for:
 
-- real public sharing
-- public preview URLs
-- avoiding localhost-only asset links
+- public share URLs
+- hosted result previews outside localhost
+- consistent share behavior across devices
 
 ## Profile Data Model
 
-The app has two profile layers:
+The app currently has two profile layers.
 
-### Identity fields from Clerk
+### Identity fields synced from Clerk
 
 - `clerkUserId`
 - `email`
@@ -314,48 +348,12 @@ The app has two profile layers:
 - `lastName`
 - `imageUrl`
 
-### App-owned profile fields in Postgres
+### App-owned profile fields stored in Postgres
 
 - `displayName`
 - `dateOfBirth`
 
-The backend syncs Clerk identity fields automatically and stores editable app metadata in Postgres through `PATCH /me`.
-
-## Style System
-
-The app currently supports:
-
-- Cartoon
-- Anime
-- Illustration
-- Pixel
-- Sketch
-- Fantasy
-- Comic
-- Watercolor
-
-Style prompts are generated server-side in the Replicate provider so each style has a tuned prompt preset instead of relying only on raw user text.
-
-## Public Sharing
-
-With `STORAGE_MODE=cloudinary`, generated assets are public URLs. The share flow is:
-
-1. Mobile selects the active generated asset.
-2. Mobile calls `POST /share/:assetId`.
-3. The backend verifies that the asset belongs to the signed-in user.
-4. The backend returns a public share URL.
-5. The mobile app opens the native share sheet with that URL.
-
-This means shared links can be opened on other devices and browsers, as long as the asset is publicly hosted.
-
-## Saving To Device Gallery
-
-Downloads are handled on mobile with Expo Media Library:
-
-- the app requests media library permission
-- the selected generated image is downloaded to cache
-- the file is saved to the user’s gallery
-- the app tries to place it into an `AI Clipart Generator` album
+Clerk remains the identity source. The API stores app-specific profile metadata through `/me`.
 
 ## Useful Commands
 
@@ -365,8 +363,8 @@ Downloads are handled on mobile with Expo Media Library:
 npm install
 npm run dev:api
 npm run android
-npm run typecheck
 npm run lint
+npm run typecheck
 npm run test
 npm run prisma:generate
 npm run prisma:push
@@ -393,19 +391,19 @@ npm run test --workspace @ai-clipart/api
 
 ## Verification Checklist
 
-Use this to verify the whole app after setup:
+Use this after setup or after a large change:
 
 - sign in with Google
 - confirm `GET /me` creates or updates the `User` row
 - open Profile and save `displayName` and `dateOfBirth`
 - upload an image from camera or gallery
-- select up to 4 styles
-- create a job
-- watch the results screen poll until assets are generated
-- retry failed styles if needed
+- choose up to 4 styles
+- create a generation job
+- watch the results screen poll until styles complete
+- retry a failed style if needed
 - save one result to the gallery
-- share one result and open the shared link externally
-- confirm generated jobs appear in the Profile gallery
+- share one result and open the shared URL externally
+- confirm jobs appear in the Profile gallery
 
 ## Troubleshooting
 
@@ -417,14 +415,14 @@ Run Prisma commands from the repo root so the root [.env](/Users/vishalsharma/De
 npm run prisma:push
 ```
 
-### Prisma Studio complains about env conflicts
+### Prisma Studio says env vars conflict
 
 Do not define `DATABASE_URL` in both:
 
 - [/.env](/Users/vishalsharma/Desktop/my-app/.env)
 - [apps/api/.env](/Users/vishalsharma/Desktop/my-app/apps/api/.env)
 
-Keep it in one place only. The recommended location is the root `.env`.
+The recommended location is the root `.env`.
 
 ### Expo Go is showing stale screens
 
@@ -446,36 +444,50 @@ EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:4000
 API_BASE_URL=http://10.0.2.2:4000
 ```
 
+### Clerk publishable or secret key is missing
+
+- mobile must read `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` from `apps/mobile/.env`
+- backend must read `CLERK_SECRET_KEY` from the root `.env`
+
 ### Share links are not public
 
-Make sure:
+Check all of the following:
 
 - `STORAGE_MODE=cloudinary`
-- Cloudinary credentials are valid
-- newly generated assets are being created after Cloudinary mode is enabled
+- valid Cloudinary credentials
+- newly generated assets were created after Cloudinary mode was enabled
+
+### Downloads fail on device
+
+Check:
+
+- media-library permission was granted
+- the selected result has a valid remote URL
+- Cloudinary URL is reachable from the device/emulator
 
 ### Replicate throttles or fails some styles
 
-This is expected during rapid testing. The backend already includes:
+This can happen during burst testing. The backend normalizes transient provider issues, but you should still:
 
-- automatic backoff for rate limiting
-- one retry for transient provider failures
-- cleaner error normalization for mobile
-
-If failures persist:
-
-- reduce test burst volume
+- reduce rapid repeated test batches
 - wait for rate limits to reset
-- verify the Replicate model input fields in `.env`
+- verify the Replicate model and input fields in `.env`
+
+## Known Constraints
+
+- The app is optimized for Android-first use.
+- Public sharing depends on Cloudinary-backed asset URLs.
+- Real image generation depends on valid Replicate configuration and quota.
+- The custom tab shell is intentionally simple to prioritize stable scrolling and touch behavior over heavier blur/glass effects.
 
 ## Final Notes
 
-- This project is optimized for Android-first evaluation.
-- The mobile app and backend share a strict contract through [packages/shared](/Users/vishalsharma/Desktop/my-app/packages/shared).
-- Real AI generation, public sharing, and persisted profile metadata all depend on correct env configuration.
-- If you change Prisma schema fields, re-run:
+- The mobile app and backend are contract-coupled through [packages/shared](/Users/vishalsharma/Desktop/my-app/packages/shared).
+- If you change Prisma models, re-run:
 
 ```bash
 npm run prisma:generate
 npm run prisma:push
 ```
+
+- If you change auth or env setup, restart both the backend and Expo.

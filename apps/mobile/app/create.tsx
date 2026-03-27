@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/expo";
+import { useAuth } from "@clerk/clerk-expo";
 import {
   SHAPE_TYPES,
   STYLE_LABELS,

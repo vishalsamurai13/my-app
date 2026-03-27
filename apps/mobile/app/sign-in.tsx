@@ -1,6 +1,7 @@
-import { useSSO } from '@clerk/expo';
+import { useAuth, useSSO } from '@clerk/clerk-expo';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as AuthSession from 'expo-auth-session';
+import { useEffect } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -8,19 +9,33 @@ import { Screen } from '@/components/ui/screen';
 export default function SignInScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ redirectTo?: string }>();
+  const { isLoaded, isSignedIn } = useAuth();
   const { startSSOFlow } = useSSO();
+  const redirectTarget = ((params.redirectTo as string) || '/(tabs)') as never;
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.replace(redirectTarget);
+    }
+  }, [isLoaded, isSignedIn, redirectTarget, router]);
 
   async function handleGoogle() {
     try {
       const { createdSessionId, setActive } = await startSSOFlow({
         strategy: 'oauth_google',
-        redirectUrl: AuthSession.makeRedirectUri(),
+        redirectUrl: AuthSession.makeRedirectUri({
+          scheme: 'aiclipart',
+          path: 'oauth-native-callback',
+        }),
       });
 
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
-        router.replace(((params.redirectTo as string) || '/(tabs)') as never);
+        router.replace(redirectTarget);
+        return;
       }
+
+      Alert.alert('Sign in incomplete', 'Google sign in did not create a session. Please try again.');
     } catch (error) {
       Alert.alert('Sign in failed', error instanceof Error ? error.message : 'Unable to sign in with Google.');
     }

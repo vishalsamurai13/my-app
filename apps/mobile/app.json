@@ -3,14 +3,15 @@
     "name": "AI Clipart Generator",
     "slug": "ai-clipart-generator",
     "version": "1.0.0",
+    "newArchEnabled": true,
     "orientation": "portrait",
     "scheme": "aiclipart",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/App_Icon.png",
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.vishal.ai_clipart_generator",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "foregroundImage": "./assets/images/App_Icon.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
@@ -19,12 +20,17 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "@clerk/expo",
       "expo-web-browser",
       "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6ac34334-881f-4bab-a060-7854e4787423"
+      }
     }
   }
 }

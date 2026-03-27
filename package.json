@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "npm --workspace @ai-clipart/shared run build",
     "dev:mobile": "npm --workspace @ai-clipart/mobile run start",
     "dev:api": "npm --workspace @ai-clipart/api run dev",
     "android": "npm --workspace @ai-clipart/mobile run android",
